@@ -7,7 +7,7 @@ import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/layout/Navbar";
 
 export const metadata: Metadata = {
-  title: "TokenSight AI — Token Intelligence & Entry Decision Platform",
+  title: "TokenSight AI - Smart Token Discovery",
   description:
     "AI-powered token intelligence. Analyze both early-stage and established tokens across the ecosystem for confident, data-driven entry decisions.",
   keywords: ["crypto", "token intelligence", "scanner", "AI", "defi", "entry signals", "smart money"],
