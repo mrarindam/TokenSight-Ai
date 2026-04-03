@@ -1,36 +1,112 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+#  TokenSight AI
 
-## Getting Started
+**Scan smarter. Discover early. Trade with intelligence.**
 
-First, run the development server:
+TokenSight AI is a real-time on-chain intelligence platform designed to identify high-conviction token opportunities in the Bags ecosystem. It transforms raw blockchain data into actionable insights using a transparent scoring engine.
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+---
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+##  What We Do
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+TokenSight AI analyzes multiple on-chain and market signals to evaluate token quality and generate a **0–100 Intelligence Score**.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+We help traders and analysts:
+- Discover early-stage tokens
+- Evaluate market strength
+- Identify high-quality opportunities
+- Avoid low-quality or risky assets
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## ⚙️ Core Features
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 🔍 Intelligence Scoring Engine
+- Base score system (0–100)
+- Transparent weighted logic
+- Real-time evaluation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### 📊 Multi-Source Data Analysis
+- Liquidity (DexScreener)
+- Volume (24h trading activity)
+- Holder distribution (Helius RPC)
+- Creator behavior (Bags API)
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### 🧠 Smart Signal Labels
+- 🟢 Strong Opportunity (80–100)
+- 🔵 Good Entry (60–79)
+- 🟡 Watch Signal (35–59)
+- 🔴 Weak Entry (0–34)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+---
+
+### 🛡️ Confidence System
+- HIGH → Full data available
+- MEDIUM → Partial data
+- LOW → Early discovery phase
+
+---
+
+### 🚨 Anti-Abuse System
+- 24h duplicate scan protection
+- Prevents spam boosting
+- Ensures fair accuracy tracking
+
+---
+
+### 🏆 Leaderboard System
+- Ranked by total scans
+- Real-time analyst competition
+- Identity badges (Bronze / Silver / Gold)
+
+---
+
+### 📡 High-Confidence Signals
+- Only top-quality tokens promoted
+- Requires:
+  - Score ≥ 65
+  - Liquidity ≥ $1000
+  - Volume ≥ $1000
+  - Valid metadata
+
+---
+
+## 📈 Intelligence Accuracy
+
+A weighted system that measures user skill:
+
+- High score scans → high impact
+- Low score scans → minimal impact
+
+> More high-quality discoveries = higher accuracy
+
+---
+
+## 🔌 Tech Stack
+
+- **Frontend:** Next.js + Tailwind CSS
+- **Backend:** Node.js API Routes
+- **Database:** Supabase
+- **AI Engine:** Groq (Llama)
+- **Blockchain Data:** Helius RPC
+- **Market Data:** DexScreener
+- **Token Source:** Bags API
+
+---
+
+## 🔐 Security & Integrity
+
+- Server-side API handling
+- No exposed keys
+- Production-safe logging
+- Anti-spam & duplicate detection
+
+---
+
+## 🌐 Platform Scope
+
+TokenSight AI currently scans:
+> ✅ Bags ecosystem tokens only
+
+---
