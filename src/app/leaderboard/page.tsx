@@ -24,7 +24,7 @@ export default function LeaderboardPage() {
         </svg>
       </div>
 
-      <div className="container max-w-6xl py-16 space-y-12 relative z-10">
+      <div className="container max-w-6xl py-8 md:py-16 space-y-12 relative z-10">
         {/* HEADER SECTION */}
         <div className="space-y-4 text-center animate-in fade-in slide-in-from-top duration-700">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-md shadow-lg shadow-primary/5">

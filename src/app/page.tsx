@@ -548,7 +548,7 @@ function TokenCard({ token }: { token: Token }) {
         >
           <div className="flex justify-between items-center mb-1">
             <span className="text-[9px] text-muted-foreground/40 font-black uppercase tracking-widest flex items-center gap-1">
-              <Shield className="w-2.5 h-2.5" /> Security Protocol
+              <Shield className="w-2.5 h-2.5" /> Token Address
             </span>
             {copied ? (
               <span className="text-[8px] font-black text-safe uppercase tracking-widest animate-in fade-in zoom-in-50">Copied!</span>

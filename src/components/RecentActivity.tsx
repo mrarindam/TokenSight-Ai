@@ -87,10 +87,10 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border/20 bg-muted/20">
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Token</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">Risk Level</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground text-center">Score</th>
-                    <th className="px-8 py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground text-right">Date</th>
+                    <th className="px-4 md:px-8 py-4 md:py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground whitespace-nowrap">Token</th>
+                    <th className="px-4 md:px-8 py-4 md:py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground whitespace-nowrap text-center">Risk Level</th>
+                    <th className="px-4 md:px-8 py-4 md:py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground text-center whitespace-nowrap">Score</th>
+                    <th className="px-4 md:px-8 py-4 md:py-5 text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground text-right whitespace-nowrap">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/20">
@@ -101,27 +101,28 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
                     
                     return (
                       <tr key={scan.id} className="hover:bg-primary/5 transition-colors group">
-                        <td className="px-8 py-4">
-                          <div className="font-extrabold text-sm tracking-tight">{scan.token_name}</div>
+                        <td className="px-4 md:px-8 py-3 md:py-4">
+                          <div className="font-extrabold text-sm tracking-tight truncate max-w-[100px] md:max-w-none">{scan.token_name}</div>
                         </td>
-                        <td className="px-8 py-4">
-                           <span className={`text-[10px] font-black px-3 py-1 rounded border shadow-sm ${
-                            isStrong ? 'bg-safe/20 text-safe border-safe/30' : 
-                            isGood ? 'bg-primary/20 text-primary border-primary/30' : 
-                            'bg-danger/20 text-danger border-danger/30'
-                          }`}>
-                            {isStrong ? 'STRONG ENTRY' : isGood ? 'GOOD ENTRY' : 'WEAK ENTRY'}
-                          </span>
+                        <td className="px-4 md:px-8 py-3 md:py-4 text-center">
+                           <span className={cn(
+                             "text-[9px] md:text-[10px] font-black px-2.5 md:px-3 py-1 rounded-full border shadow-sm whitespace-nowrap inline-flex items-center justify-center min-w-[90px] md:min-w-[100px]",
+                             isStrong ? "bg-safe/20 text-safe border-safe/30" : 
+                             isGood ? "bg-primary/20 text-primary border-primary/30" : 
+                             "bg-danger/20 text-danger border-danger/30"
+                           )}>
+                             {isStrong ? 'STRONG ENTRY' : isGood ? 'GOOD ENTRY' : 'WEAK ENTRY'}
+                           </span>
                         </td>
-                        <td className="px-8 py-4 text-center">
+                        <td className="px-4 md:px-8 py-3 md:py-4 text-center">
                           <div className={cn(
-                            "font-mono text-sm font-black mx-auto w-fit px-2 py-0.5 rounded",
+                            "font-mono text-xs md:text-sm font-black mx-auto w-fit px-2 py-0.5 rounded",
                             isPrimeHit ? "text-primary animate-pulse-glow shadow-[0_0_15px_rgba(var(--primary),0.3)] bg-primary/5" : "text-muted-foreground/80"
                           )}>
                             {scan.score}
                           </div>
                         </td>
-                        <td className="px-8 py-4 text-right">
+                        <td className="px-4 md:px-8 py-3 md:py-4 text-right">
                           <div className="group relative cursor-help">
                             <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">
                               <LocalTime timestamp={scan.created_at} mode="smart" />

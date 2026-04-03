@@ -161,16 +161,32 @@ function ScanPageContent() {
   }, [address, isScanning, limitReached, anonCount, isAuthenticated, router])
 
   useEffect(() => {
-    if (urlAddress && !isScanning && !result && !errorMsg) {
-      if (limitReached) {
-        setLimitAlert(true)
-        return
+    if (urlAddress) {
+      // Force scroll to top immediately on navigation from feed
+      window.scrollTo(0, 0)
+      
+      if (!isScanning && !result && !errorMsg) {
+        if (limitReached) {
+          setLimitAlert(true)
+          return
+        }
+        if (hasStartedScan.current === urlAddress) return
+        hasStartedScan.current = urlAddress
+        handleScan(urlAddress)
       }
-      if (hasStartedScan.current === urlAddress) return
-      hasStartedScan.current = urlAddress
-      handleScan(urlAddress)
     }
   }, [urlAddress, limitReached, isScanning, result, errorMsg, handleScan])
+
+  // Post-scan stabilization: Ensure user stays at top to see the results from start
+  useEffect(() => {
+    if (result && !isScanning) {
+      // Use a micro-task delay to ensure the DOM has rendered the new result state
+      const timer = setTimeout(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" })
+      }, 50)
+      return () => clearTimeout(timer)
+    }
+  }, [result, isScanning])
 
   const getSignalStyle = (scoreValue: number) => {
     if (scoreValue <= 30) {
@@ -220,7 +236,7 @@ function ScanPageContent() {
     if (result && !isScanning) {
       setIsRevealed(false)
       setAnimatedScore(0)
-      
+
       const duration = 2000
       const target = result.score
       const startTime = performance.now()
@@ -228,11 +244,11 @@ function ScanPageContent() {
       const animate = (currentTime: number) => {
         const elapsed = currentTime - startTime
         const progress = Math.min(elapsed / duration, 1)
-        
+
         // Ease out quad
         const easedProgress = 1 - (1 - progress) * (1 - progress)
         const currentScore = Math.floor(easedProgress * target)
-        
+
         setAnimatedScore(currentScore)
 
         if (progress < 1) {
@@ -241,7 +257,7 @@ function ScanPageContent() {
           setIsRevealed(true)
         }
       }
-      
+
       requestAnimationFrame(animate)
     }
   }, [result, isScanning])
@@ -258,10 +274,13 @@ function ScanPageContent() {
   const signalStyle = result ? getSignalStyle(animatedScore) : null
 
   return (
-    <div className="flex flex-col min-h-screen">
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[400px] bg-primary/5 rounded-full blur-[150px] pointer-events-none" />
+    <div className="flex flex-col min-h-screen relative overflow-x-hidden w-full outline outline-0 outline-red-500/0">
+      {/* BACKGROUND ACCENT WRAPPER TO PREVENT OVERFLOW */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[600px] h-[400px] pointer-events-none overflow-hidden">
+        <div className="absolute inset-0 bg-primary/5 rounded-full blur-[150px] opacity-50" />
+      </div>
 
-      <div className="container max-w-4xl py-16 space-y-10 relative">
+      <div className="container w-full max-w-4xl py-10 md:py-16 px-4 md:px-8 space-y-10 relative z-10">
         <div className="space-y-3 text-center animate-fade-up">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-medium">
             <Sparkles className="h-3 w-3" />
@@ -292,12 +311,12 @@ function ScanPageContent() {
         </div>
 
         <div className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="flex gap-3 max-w-2xl mx-auto">
-            <div className="relative flex-1">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto w-full">
+            <div className="relative flex-1 w-full min-w-0 group">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
                 placeholder="abcd...BAGS"
-                className="h-13 pl-11 pr-4 border-border/50 bg-card/50 backdrop-blur-sm text-base font-mono rounded-xl focus-visible:ring-primary/30 focus-visible:border-primary/40 transition-all duration-200"
+                className="h-12 md:h-13 w-full min-w-0 pl-11 pr-4 border-border/50 bg-card/50 backdrop-blur-sm text-sm md:text-base font-mono rounded-xl focus-visible:ring-primary/30 focus-visible:border-primary/40 transition-all duration-200 shadow-sm"
                 value={address}
                 onChange={(e) => setAddress(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && handleScan(address)}
@@ -305,16 +324,16 @@ function ScanPageContent() {
             </div>
             <Button
               size="lg"
-              className="h-13 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 rounded-xl font-semibold w-32"
+              className="h-12 md:h-13 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 rounded-xl font-semibold w-full sm:w-36 flex-shrink-0"
               onClick={() => handleScan(address)}
               disabled={!address || isScanning}
             >
               {isScanning ? (
-                <Loader2 className="h-5 w-5 animate-spin mx-auto" />
+                <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary-foreground" />
               ) : (
-                <>
-                  Scan <ArrowRight className="ml-2 h-4 w-4" />
-                </>
+                <div className="flex items-center justify-center gap-2">
+                  Scan <ArrowRight className="h-4 w-4" />
+                </div>
               )}
             </Button>
           </div>
@@ -350,22 +369,22 @@ function ScanPageContent() {
 
           {isScanning && (
             <div className="flex flex-col items-center justify-center py-20 space-y-8 animate-in fade-in duration-500">
-               <div className="relative">
-                  <div className="absolute -inset-12 bg-primary/20 rounded-full blur-3xl animate-pulse" />
-                  <div className="w-44 h-44 rounded-full border-4 border-primary/10 flex items-center justify-center relative backdrop-blur-3xl shadow-[0_0_50px_rgba(var(--primary),0.1)]">
-                     <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping" style={{ animationDuration: '3s' }} />
-                     <Loader2 className="w-12 h-12 text-primary animate-spin" />
-                     <div className="absolute -inset-2 rounded-full border-t-2 border-primary animate-spin" style={{ animationDuration: '2s' }} />
-                  </div>
-               </div>
-               <div className="text-center space-y-3">
-                 <h3 className="text-3xl font-black tracking-tighter text-foreground animate-pulse-glow">Analyzing Token Intelligence...</h3>
-                 <div className="flex items-center justify-center gap-4">
-                    <span className="h-1 w-12 bg-gradient-to-r from-transparent to-primary/50 rounded-full" />
-                    <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">{scanPhase || "Scanning Market Nodes"}</p>
-                    <span className="h-1 w-12 bg-gradient-to-l from-transparent to-primary/50 rounded-full" />
-                 </div>
-               </div>
+              <div className="relative">
+                <div className="absolute -inset-12 bg-primary/20 rounded-full blur-3xl animate-pulse" />
+                <div className="w-44 h-44 rounded-full border-4 border-primary/10 flex items-center justify-center relative backdrop-blur-3xl shadow-[0_0_50px_rgba(var(--primary),0.1)]">
+                  <div className="absolute inset-0 rounded-full border-2 border-primary/20 animate-ping" style={{ animationDuration: '3s' }} />
+                  <Loader2 className="w-12 h-12 text-primary animate-spin" />
+                  <div className="absolute -inset-2 rounded-full border-t-2 border-primary animate-spin" style={{ animationDuration: '2s' }} />
+                </div>
+              </div>
+              <div className="text-center space-y-3">
+                <h3 className="text-3xl font-black tracking-tighter text-foreground animate-pulse-glow">Analyzing Token Intelligence...</h3>
+                <div className="flex items-center justify-center gap-4">
+                  <span className="h-1 w-12 bg-gradient-to-r from-transparent to-primary/50 rounded-full" />
+                  <p className="text-muted-foreground text-[10px] font-black uppercase tracking-[0.3em] animate-pulse">{scanPhase || "Scanning Market Nodes"}</p>
+                  <span className="h-1 w-12 bg-gradient-to-l from-transparent to-primary/50 rounded-full" />
+                </div>
+              </div>
             </div>
           )}
 
@@ -381,27 +400,27 @@ function ScanPageContent() {
 
         {result && signalStyle && !isScanning && !errorMsg && (
           <div className="space-y-6 animate-fade-up">
-            <Card className={`glass border-border/40 overflow-hidden ${signalStyle.glowClass} transition-all duration-1000`}>
-              <div className={cn("h-1 w-full transition-colors duration-1000", signalStyle.bgColor)} />
-              <CardContent className="p-8">
-                <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
+            <Card className={cn("glass border-border/40 overflow-hidden max-w-full relative transition-all duration-1000", signalStyle.glowClass)}>
+              <div className={cn("h-1 w-full transition-colors duration-1000 relative z-20", signalStyle.bgColor)} />
+              <CardContent className="p-5 md:p-8">
+                <div className="flex flex-col lg:flex-row items-center lg:items-start gap-8 w-full">
                   <div className="flex flex-col items-center justify-center flex-shrink-0 space-y-6">
                     <div className="relative group perspective-1000">
                       {/* Premium Outer Glow */}
                       <div className={cn("absolute inset-0 rounded-full blur-2xl opacity-20 transition-all duration-1000 group-hover:opacity-40 animate-pulse-glow", signalStyle.bgColor)} />
-                      
+
                       <div className="w-40 h-40 rounded-full border-4 border-white/5 flex items-center justify-center relative backdrop-blur-md shadow-2xl transition-transform duration-500 group-hover:scale-105">
                         <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 128 128">
                           <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="4" className="text-white/5" />
-                          <circle 
-                            cx="64" cy="64" r="58" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            strokeWidth="6" 
-                            strokeDasharray="364" 
-                            strokeDashoffset={364 - (animatedScore / 100) * 364} 
-                            strokeLinecap="round" 
-                            className={cn(signalStyle.color, "transition-all duration-300 ease-out drop-shadow-[0_0_12px_currentColor]")} 
+                          <circle
+                            cx="64" cy="64" r="58"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="6"
+                            strokeDasharray="364"
+                            strokeDashoffset={364 - (animatedScore / 100) * 364}
+                            strokeLinecap="round"
+                            className={cn(signalStyle.color, "transition-all duration-300 ease-out drop-shadow-[0_0_12px_currentColor]")}
                           />
                         </svg>
                         <div className="text-center relative z-10">
@@ -414,17 +433,17 @@ function ScanPageContent() {
                     </div>
 
                     <div className={cn("flex flex-col gap-2.5 w-full transition-all duration-1000", isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4")}>
-                       <div 
-                         className={cn("text-[10px] font-black uppercase tracking-widest px-5 py-2 rounded-xl border border-white/5 mx-auto shadow-2xl flex items-center gap-2", signalStyle.badgeClass)}
-                       >
-                         {signalStyle.icon} {signalStyle.label}
-                       </div>
-                       <div 
-                         className={cn("text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border text-center relative overflow-hidden group/conf", getConfidenceStyle(result.confidence))}
-                       >
-                         <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover/conf:translate-x-[100%] transition-transform duration-1000" />
-                         {result.confidence} CONFIDENCE
-                       </div>
+                      <div
+                        className={cn("text-[10px] font-black uppercase tracking-widest px-5 py-2 rounded-xl border border-white/5 mx-auto shadow-2xl flex items-center gap-2", signalStyle.badgeClass)}
+                      >
+                        {signalStyle.icon} {signalStyle.label}
+                      </div>
+                      <div
+                        className={cn("text-[9px] font-black uppercase tracking-[0.2em] px-4 py-1.5 rounded-full border text-center relative overflow-hidden group/conf", getConfidenceStyle(result.confidence))}
+                      >
+                        <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover/conf:translate-x-[100%] transition-transform duration-1000" />
+                        {result.confidence} CONFIDENCE
+                      </div>
                     </div>
                     <span className="text-[10px] font-mono text-muted-foreground/40 truncate max-w-[150px] text-center hover:text-muted-foreground/60 transition-colors cursor-default">
                       {result.contractName}
@@ -433,7 +452,7 @@ function ScanPageContent() {
 
                   <div className="flex-1 space-y-4 w-full">
                     <h3 className="font-black uppercase tracking-widest text-xs flex items-center gap-2">
-                       Intelligence Signals
+                      Intelligence Signals
                       <span className="text-[10px] text-muted-foreground font-black bg-muted/50 px-2 py-0.5 rounded-full">
                         {result.signals?.length || 0}
                       </span>
@@ -443,14 +462,14 @@ function ScanPageContent() {
                         let mappedSeverity = "medium"
                         let mappedIcon = Activity
                         if (signalText.includes("not available") || signalText.includes("discovery")) {
-                            mappedSeverity = "info"
-                            mappedIcon = Sparkles
+                          mappedSeverity = "info"
+                          mappedIcon = Sparkles
                         } else if (signalText.includes("Critically") || signalText.includes("limited")) {
-                            mappedSeverity = "critical"
-                            mappedIcon = ShieldAlert
+                          mappedSeverity = "critical"
+                          mappedIcon = ShieldAlert
                         } else if (signalText.includes("Healthy") || signalText.includes("Strong") || signalText.includes("Broad")) {
-                            mappedSeverity = "success"
-                            mappedIcon = Zap
+                          mappedSeverity = "success"
+                          mappedIcon = Zap
                         }
 
                         const severityColors: Record<string, string> = {
@@ -478,42 +497,42 @@ function ScanPageContent() {
             </Card>
 
             {result.meta && (
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                 {[
-                  { 
-                    label: "Liquidity", 
+                  {
+                    label: "Liquidity",
                     value: (result.meta.liquidity !== null && result.meta.liquidity > 0)
-                      ? `$${result.meta.liquidity.toLocaleString()}` 
-                      : "Discovery Phase", 
-                    icon: Droplets 
+                      ? `$${result.meta.liquidity.toLocaleString()}`
+                      : "Discovery Phase",
+                    icon: Droplets
                   },
-                  { 
-                    label: "Volume (24h)", 
+                  {
+                    label: "Volume (24h)",
                     value: (result.meta.volume !== null && result.meta.volume > 0)
-                      ? `$${result.meta.volume.toLocaleString()}` 
-                      : "Early Activity", 
-                    icon: Activity 
+                      ? `$${result.meta.volume.toLocaleString()}`
+                      : "Early Activity",
+                    icon: Activity
                   },
-                  { 
-                    label: "Holders", 
+                  {
+                    label: "Holders",
                     value: (result.meta.holders !== null && result.meta.holders > 0)
-                      ? result.meta.holders.toLocaleString() 
-                      : "Data Unavailable", 
-                    icon: Users 
+                      ? result.meta.holders.toLocaleString()
+                      : "Data Unavailable",
+                    icon: Users
                   },
-                  { 
-                    label: "Creator Tokens", 
-                    value: (result.meta.creator_tokens !== null) 
-                      ? result.meta.creator_tokens 
-                      : "---", 
-                    icon: WalletCards 
+                  {
+                    label: "Creator Tokens",
+                    value: (result.meta.creator_tokens !== null)
+                      ? result.meta.creator_tokens
+                      : "---",
+                    icon: WalletCards
                   },
                 ].map((stat, i) => (
                   <Card key={i} className="glass border-border/40 hover:border-primary/30 transition-colors">
                     <CardContent className="p-4 flex flex-col items-center justify-center text-center space-y-2">
-                       <div className="p-2 bg-primary/10 text-primary rounded-lg mb-1"><stat.icon className="h-4 w-4" /></div>
-                       <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
-                       <div className="font-mono text-sm md:text-lg font-bold truncate max-w-full">{stat.value}</div>
+                      <div className="p-2 bg-primary/10 text-primary rounded-lg mb-1"><stat.icon className="h-4 w-4" /></div>
+                      <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
+                      <div className="font-mono text-sm md:text-lg font-bold truncate max-w-full">{stat.value}</div>
                     </CardContent>
                   </Card>
                 ))}
