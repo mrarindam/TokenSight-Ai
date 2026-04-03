@@ -110,3 +110,11 @@ TokenSight AI currently scans:
 > ✅ Bags ecosystem tokens only
 
 ---
+
+## ⚠️ Disclaimer
+
+TokenSight AI provides AI-generated intelligence scores based on on-chain and market data. These insights are for informational purposes only and do not constitute financial advice.
+
+Always conduct your own research (DYOR) before making any investment decisions. The crypto market is highly volatile, and users are solely responsible for their actions.
+
+---
