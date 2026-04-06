@@ -1,0 +1,24 @@
+name: Cron Alert Checker
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  alert-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run alert check
+        run: |
+          curl -s -o /tmp/cron-result.json -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            https://tokensightai.tech/api/cron/check-alerts > /tmp/cron-status.txt
+          HTTP_STATUS=$(cat /tmp/cron-status.txt)
+          echo "HTTP status: $HTTP_STATUS"
+          cat /tmp/cron-result.json
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Cron check failed"
+            exit 1
+          fi
