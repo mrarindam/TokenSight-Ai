@@ -8,7 +8,7 @@ import type { PriceAlertRecord } from "@/types/app"
 const DEFAULT_API = "/api/alerts"
 
 export default function AlertsPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const [alerts, setAlerts] = useState<PriceAlertRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)

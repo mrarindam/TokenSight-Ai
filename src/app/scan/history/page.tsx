@@ -3,14 +3,12 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import type { ScanHistoryRecord } from "@/types/app"
-import { cn } from "@/lib/utils"
 
 const DEFAULT_API = "/api/scan/history"
 
 export default function ScanHistoryPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const [history, setHistory] = useState<ScanHistoryRecord[]>([])
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -18,7 +16,6 @@ export default function ScanHistoryPage() {
   }, [status])
 
   async function fetchHistory() {
-    setLoading(true)
     setError(null)
     try {
       const response = await fetch(DEFAULT_API)
@@ -27,8 +24,6 @@ export default function ScanHistoryPage() {
       setHistory(data.scans || [])
     } catch (err) {
       setError((err as Error).message)
-    } finally {
-      setLoading(false)
     }
   }
 

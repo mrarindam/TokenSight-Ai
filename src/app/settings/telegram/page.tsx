@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils"
 import { Send, CheckCircle, AlertCircle } from "lucide-react"
 
 export default function TelegramSettingsPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const [telegramId, setTelegramId] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState("")
   const [loading, setLoading] = useState(false)
@@ -189,7 +189,7 @@ export default function TelegramSettingsPage() {
 
           {/* Features */}
           <div className="space-y-3 pt-4 border-t border-border/30">
-            <p className="text-sm font-semibold">You'll receive alerts for:</p>
+            <p className="text-sm font-semibold">You&apos;ll receive alerts for:</p>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <span className="h-1 w-1 rounded-full bg-primary" />

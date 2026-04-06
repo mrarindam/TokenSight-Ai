@@ -80,6 +80,8 @@ ${emoji} <b>TokenSight Alert</b>
 /**
  * Extract Telegram user ID from message
  */
-export function extractUserIdFromUpdate(update: any): string | null {
-  return update.message?.from?.id?.toString() || null
+export function extractUserIdFromUpdate(update: Record<string, unknown>): string | null {
+  const message = update.message as Record<string, unknown> | undefined
+  const from = message?.from as Record<string, unknown> | undefined
+  return from?.id?.toString() || null
 }

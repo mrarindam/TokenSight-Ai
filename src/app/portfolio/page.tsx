@@ -8,7 +8,7 @@ import type { PortfolioRecord } from "@/types/app"
 const DEFAULT_API = "/api/portfolio"
 
 export default function PortfolioPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const [portfolio, setPortfolio] = useState<PortfolioRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
