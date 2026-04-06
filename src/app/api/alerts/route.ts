@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { sendTelegramMessage } from "@/lib/telegram"
 import type { CreateAlertPayload } from "@/types/app"
 
 export const dynamic = "force-dynamic"
@@ -9,6 +10,23 @@ export const revalidate = 0
 
 const VALID_ALERT_TYPES = ["PRICE_DROP", "PRICE_RISE", "SCORE_CHANGE"]
 const VALID_COMPARISON_TYPES = ["BELOW", "ABOVE", "CHANGE_BY_PERCENT"]
+
+async function notifyUser(userId: string, text: string) {
+  const { data: user } = await supabaseAdmin
+    .from("users")
+    .select("telegram_id")
+    .eq("id", userId)
+    .maybeSingle()
+
+  if (!user?.telegram_id) {
+    return
+  }
+
+  await sendTelegramMessage({
+    chat_id: user.telegram_id,
+    text,
+  })
+}
 
 export async function GET() {
   const session = await getServerSession(authOptions)
@@ -73,5 +91,55 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Failed to create alert" }, { status: 500 })
   }
 
+  if (data) {
+    notifyUser(
+      session.user.id,
+      `✅ <b>Alert Created</b>\n\nYour alert for <b>${data.token_name || data.token_address}</b> has been created successfully.`
+    )
+  }
+
   return NextResponse.json({ alert: data })
+}
+
+export async function DELETE(request: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const body = await request.json()
+  const alertId = body.alert_id?.toString?.().trim()
+
+  if (!alertId) {
+    return NextResponse.json({ error: "Alert ID required" }, { status: 400 })
+  }
+
+  const { data: alert, error: fetchError } = await supabaseAdmin
+    .from("price_alerts")
+    .select("id, token_address, token_name")
+    .eq("id", alertId)
+    .eq("user_id", session.user.id)
+    .single()
+
+  if (fetchError || !alert) {
+    console.error("[api/alerts] DELETE fetch", fetchError)
+    return NextResponse.json({ error: "Alert not found" }, { status: 404 })
+  }
+
+  const { error: deleteError } = await supabaseAdmin
+    .from("price_alerts")
+    .delete()
+    .eq("id", alertId)
+
+  if (deleteError) {
+    console.error("[api/alerts] DELETE", deleteError)
+    return NextResponse.json({ error: "Failed to delete alert" }, { status: 500 })
+  }
+
+  notifyUser(
+    session.user.id,
+    `🗑️ <b>Alert Deleted</b>\n\nYour alert for <b>${alert.token_name || alert.token_address}</b> has been removed.`
+  )
+
+  return NextResponse.json({ deleted: true })
 }

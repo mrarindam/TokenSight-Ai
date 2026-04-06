@@ -12,6 +12,7 @@ export default function AlertsPage() {
   const [alerts, setAlerts] = useState<PriceAlertRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [formState, setFormState] = useState({
     token_address: "",
     token_name: "",
@@ -63,6 +64,30 @@ export default function AlertsPage() {
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || "Unable to create alert")
       setFormState({ token_address: "", token_name: "", alert_type: "PRICE_DROP", comparison_type: "BELOW", threshold: "" })
+      setSuccessMessage("Alert created successfully and notification sent if Telegram is linked.")
+      fetchAlerts()
+    } catch (err) {
+      setError((err as Error).message)
+      setSuccessMessage(null)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleDelete(alertId: string) {
+    setLoading(true)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      const response = await fetch(DEFAULT_API, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alert_id: alertId }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || "Unable to delete alert")
+      setSuccessMessage("Alert deleted successfully and Telegram notification sent if linked.")
       fetchAlerts()
     } catch (err) {
       setError((err as Error).message)
@@ -161,6 +186,7 @@ export default function AlertsPage() {
           </div>
 
           {error && <div className="rounded-3xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">{error}</div>}
+          {successMessage && <div className="rounded-3xl border border-green-400/25 bg-green-500/10 px-4 py-3 text-sm text-green-600">{successMessage}</div>}
 
           <button
             type="submit"
@@ -204,7 +230,16 @@ export default function AlertsPage() {
                     <td className="px-3 py-4">{alert.alert_type.replace("_", " ")}</td>
                     <td className="px-3 py-4 text-right">{alert.threshold}</td>
                     <td className="px-3 py-4 text-right">
-                      <span className="rounded-full bg-muted/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{alert.is_active ? "ACTIVE" : "INACTIVE"}</span>
+                      <div className="flex items-center justify-end gap-2">
+                        <span className="rounded-full bg-muted/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{alert.is_active ? "ACTIVE" : "INACTIVE"}</span>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(alert.id)}
+                          className="rounded-full border border-red-500/20 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-500 transition hover:bg-red-500/15"
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
