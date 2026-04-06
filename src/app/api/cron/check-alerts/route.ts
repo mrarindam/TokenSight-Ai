@@ -96,14 +96,15 @@ export async function GET(request: Request) {
           continue
         }
 
-        // Check if should trigger
-        if (!shouldTriggerAlert(currentPrice, alert.threshold, alert.comparison_type)) {
+        const changePercent = ((currentPrice - alert.threshold) / alert.threshold) * 100
+        const shouldTrigger = shouldTriggerAlert(currentPrice, alert.threshold, alert.comparison_type)
+        console.log(
+          `[CRON] alert ${alert.id} user=${alert.user_id} token=${alert.token_name || alert.token_address} current=${currentPrice} threshold=${alert.threshold} comparison=${alert.comparison_type} shouldTrigger=${shouldTrigger}`
+        )
+
+        if (!shouldTrigger) {
           continue
         }
-
-        console.log(
-          `[CRON] Alert triggered for ${alert.token_name} (${alert.alert_type})`
-        )
 
         // 3. Get user's Telegram ID
         const { data: user } = await supabaseAdmin
@@ -118,7 +119,6 @@ export async function GET(request: Request) {
         }
 
         // 4. Send Telegram message
-        const changePercent = ((currentPrice - alert.threshold) / alert.threshold) * 100
         const message = formatAlertMessage({
           token_name: alert.token_name || alert.token_address,
           token_address: alert.token_address,
@@ -128,23 +128,28 @@ export async function GET(request: Request) {
           change_percent: changePercent,
         })
 
+        console.log(`[CRON] Sending alert ${alert.id} to telegram_id=${user.telegram_id}`)
         const telegramResult = await sendTelegramMessage({
           chat_id: user.telegram_id,
           text: message,
         })
 
-        if (telegramResult.success) {
-          triggeredCount++
-
-          // 5. Update alert with trigger info
-          await supabaseAdmin
-            .from("price_alerts")
-            .update({
-              trigger_count: (alert.trigger_count || 0) + 1,
-              last_triggered_at: new Date().toISOString(),
-            })
-            .eq("id", alert.id)
+        if (!telegramResult.success) {
+          console.error(`[CRON] Telegram send failed for alert ${alert.id}:`, telegramResult.error)
+          continue
         }
+
+        triggeredCount++
+        console.log(`[CRON] Telegram sent for alert ${alert.id}`)
+
+        // 5. Update alert with trigger info
+        await supabaseAdmin
+          .from("price_alerts")
+          .update({
+            trigger_count: (alert.trigger_count || 0) + 1,
+            last_triggered_at: new Date().toISOString(),
+          })
+          .eq("id", alert.id)
       } catch (err) {
         console.error(`[CRON] Error processing alert ${alert.id}:`, err)
       }
