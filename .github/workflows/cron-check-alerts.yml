@@ -10,15 +10,26 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Debug info
+        run: |
+          echo "Event name: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Run ID: ${{ github.run_id }}"
+          echo "---"
+
       - name: Run alert check
         run: |
+          echo "Starting alert check at $(date)"
           curl -s -o /tmp/cron-result.json -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
             https://tokensightai.tech/api/cron/check-alerts > /tmp/cron-status.txt
           HTTP_STATUS=$(cat /tmp/cron-status.txt)
           echo "HTTP status: $HTTP_STATUS"
+          echo "Response:"
           cat /tmp/cron-result.json
+          echo ""
           if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Cron check failed"
+            echo "Cron check failed with status $HTTP_STATUS"
             exit 1
           fi
+          echo "Cron check succeeded"
