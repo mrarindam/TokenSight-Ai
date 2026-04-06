@@ -53,6 +53,23 @@ The `vercel.json` file is already configured to run alerts check every 5 minutes
 - Set `CRON_SECRET` environment variable
 - Enable the cron
 
+### Step 3.5: Set up Telegram Webhook
+
+Your app now exposes a webhook endpoint at `/api/telegram/webhook`.
+
+1. Deploy to Vercel so this endpoint is live.
+2. Run this URL in your browser or use `curl` to verify it returns `404` for GET and accepts POST updates.
+3. Register the webhook with Telegram using the bot token:
+
+```bash
+curl -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/setWebhook" \
+  -d "url=https://your-app.vercel.app/api/telegram/webhook"
+```
+
+4. Confirm Telegram returns `true`.
+
+This makes `/start` work properly.
+
 ### Step 4: Users Link Their Telegram
 
 1. Users go to `/settings/telegram`
