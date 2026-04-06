@@ -477,14 +477,22 @@ Rules:
 
     // --- DATABASE PERSISTENCE (Backgrounded logically) ---
     const tokenName = bagsToken?.name || dexTokenName || bagsToken?.symbol || "Unknown Token"
+    const tokenSymbol = bagsToken?.symbol || dexTokenSymbol || "???"
 
     // We run this without awaiting the final UI response to ensure speed
     // Insert Scan for ALL users (logged-in or anonymous)
     supabase.from("scans").insert({
       user_id: session?.user?.id || null, // Nullable for anonymous users
       token_name: tokenName,
+      token_address: address,
+      token_symbol: tokenSymbol,
       risk_level: label,
       score: score,
+      confidence: confidence,
+      signals: signals,
+      liquidity: liquidity,
+      volume: volume,
+      holders: holders,
     }).then(({ error }) => {
       // Only update streaks for logged-in users
       if (!error && session?.user?.id) {

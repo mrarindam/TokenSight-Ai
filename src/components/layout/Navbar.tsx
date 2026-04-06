@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Menu, X, Scan, Trophy, User, Activity } from "lucide-react"
+import { Menu, X, Scan, Trophy, User, Activity, Target, ShieldAlert, Settings } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
@@ -12,8 +12,12 @@ import { cn } from "@/lib/utils"
 const NAV_ITEMS = [
   { href: "/", label: "Feed", icon: Activity },
   { href: "/scan", label: "Scan", icon: Scan },
+  { href: "/scan/history", label: "History", icon: Activity },
+  { href: "/portfolio", label: "Portfolio", icon: Target },
+  { href: "/alerts", label: "Alerts", icon: ShieldAlert },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/profile", label: "Profile", icon: User },
+  { href: "/settings/telegram", label: "Telegram", icon: Settings },
 ]
 
 export function Navbar() {

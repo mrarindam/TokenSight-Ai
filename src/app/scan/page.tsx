@@ -25,6 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { ScanQuickActions } from "@/components/ScanQuickActions"
 
 interface ScanResult {
   score: number;
@@ -42,6 +43,8 @@ interface ScanResult {
     twitter?: string | null;
   };
 }
+
+export type { ScanResult }
 
 const renderHighlightedSummary = (text: string) => {
   if (!text) return null
@@ -557,6 +560,8 @@ function ScanPageContent() {
                 </p>
               </CardContent>
             </Card>
+
+            <ScanQuickActions result={result} />
           </div>
         )}
 
