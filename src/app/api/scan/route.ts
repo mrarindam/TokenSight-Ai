@@ -7,9 +7,37 @@ import { updateStreak } from "@/lib/streak-logic"
 import { addLowRiskToken } from "@/lib/lowRiskStore"
 import type { Token } from "@/types/token"
 
-const BAGS_API_KEY = process.env.BAGS_API_KEY || ""
-const GROQ_API_KEY = process.env.GROQ_API_KEY || ""
-const HELIUS_API_KEY = process.env.HELIUS_API_KEY || ""
+const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
+const BAGS_API_KEY = process.env.BAGS_API_KEY?.trim() || ""
+const HELIUS_API_KEY = process.env.HELIUS_API_KEY?.trim() || ""
+
+type DexPair = {
+  chainId?: string
+  pairAddress?: string
+  liquidity?: { usd?: number }
+  volume?: { h24?: number }
+  baseToken?: { name?: string; symbol?: string; address?: string }
+  priceUsd?: string
+  pairCreatedAt?: number
+  info?: {
+    imageUrl?: string
+    socials?: { type: string; url: string }[]
+    websites?: { url: string }[]
+  }
+}
+
+type HolderSnapshot = {
+  holdersCount: number | null
+  topHolderPct: number | null
+  whaleWarning: boolean
+  holderBreakdown: Array<{ rank: number; pct: number }>
+}
+
+type HeliusCreatorBehavior = {
+  creatorAddress: string | null
+  createdTokens: number | null
+  source: "helius-authority" | "helius-creator" | null
+}
 
 export async function POST(request: Request) {
   try {
@@ -40,10 +68,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid token address format" }, { status: 400 })
     }
 
-    if (!GROQ_API_KEY) {
-      return NextResponse.json({ error: "Server configuration error: missing API keys" }, { status: 500 })
-    }
-
     // --- STEP 2: FETCH DATA ---
 
     // --- STEP 2: FETCH DATA (PARALLEL & ROBUST) ---
@@ -51,7 +75,20 @@ export async function POST(request: Request) {
       console.log(`[SCAN_ENGINE] Starting full audit for: ${address}`)
     }
 
-    const [bagsResult, dexResult, heliusResult] = await Promise.allSettled([
+    const [birdeyePriceResult, birdeyeOverviewResult, bagsResult, dexResult, heliusAssetResult] = await Promise.allSettled([
+      fetchBirdeyeData(
+        "/defi/price",
+        { address, include_liquidity: "true", ui_amount_mode: "scaled" },
+        BIRDEYE_API_KEY,
+        "price"
+      ),
+      fetchBirdeyeData(
+        "/defi/token_overview",
+        { address, ui_amount_mode: "scaled", frames: "24h" },
+        BIRDEYE_API_KEY,
+        "token_overview"
+      ),
+
       // 1. Fetch token details from Bags API Feed
       (async () => {
         const bagsUrl = "https://public-api-v2.bags.fm/api/v1/token-launch/feed"
@@ -113,80 +150,26 @@ export async function POST(request: Request) {
           console.warn("[SCAN_ENGINE] DexScreener API Error:", e)
         }
         return null
-      })(),
-
-      // 3. Fetch holder data from Helius (PAGINATED DAS for unique owner counting)
-      (async () => {
-        try {
-          const owners = new Set<string>()
-          let currentPage = 1
-          const maxPages = 3 // MVP Limit for performance
-
-          while (currentPage <= maxPages) {
-            const heliusRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                jsonrpc: "2.0",
-                id: "1",
-                method: "getTokenAccounts",
-                params: {
-                  mint: address,
-                  page: currentPage,
-                  limit: 1000
-                }
-              })
-            })
-
-            if (heliusRes.status === 429) {
-              console.error("[SCAN_ENGINE] Helius Rate Limit (429) Triggered")
-              break
-            }
-
-            if (heliusRes.ok) {
-              const rawHelius = await heliusRes.json()
-              if (process.env.NODE_ENV === "development") {
-                console.log(`[SCAN_ENGINE] HELIUS RAW (Page ${currentPage}):`, {
-                  total: rawHelius.result?.total,
-                  returned: rawHelius.result?.token_accounts?.length
-                })
-              }
-
-              const accounts = rawHelius.result?.token_accounts || []
-              if (accounts.length === 0) break
-
-              // Count UNIQUE owners across pages
-              accounts.forEach((acc: { owner?: string }) => {
-                if (acc.owner) owners.add(acc.owner)
-              })
-
-              // Stop if we've reached the last page or no more accounts
-              if (accounts.length < 1000) break
-              currentPage++
-            } else {
-              break
-            }
-          }
-
-          if (owners.size === 0) return null
-          return { total: owners.size } // Return count wrapped in object
-        } catch (e) {
-          console.warn("[SCAN_ENGINE] Helius Paginated API Error:", e)
-        }
-        return null
       })()
+      ,
+      fetchHeliusAsset(address, HELIUS_API_KEY)
     ])
 
     // --- STEP 2.5: EXTRACT DATA & FALLBACKS ---
-    const bagsToken = bagsResult.status === "fulfilled" ? bagsResult.value : null
+    const rawBirdeyePrice = birdeyePriceResult.status === "fulfilled" ? birdeyePriceResult.value : null
+    const rawBirdeyeOverview = birdeyeOverviewResult.status === "fulfilled" ? birdeyeOverviewResult.value : null
+    const fallbackBagsToken = bagsResult.status === "fulfilled" ? bagsResult.value : null
     let rawDex = dexResult.status === "fulfilled" ? dexResult.value : null
-    const rawHelius = heliusResult.status === "fulfilled" ? heliusResult.value : null
+    const rawHeliusAsset = heliusAssetResult.status === "fulfilled" ? heliusAssetResult.value : null
+
+    const birdeyeToken = normalizeBirdeyeToken(rawBirdeyeOverview, rawBirdeyePrice)
+    const bagsToken = fallbackBagsToken
 
     // --- FALLBACK: DexScreener Symbol Search ---
-    if ((!rawDex?.pairs || rawDex.pairs.length === 0) && bagsToken?.symbol) {
+    if ((!rawDex?.pairs || rawDex.pairs.length === 0) && fallbackBagsToken?.symbol) {
       console.log(`[SCAN_ENGINE] DexScreener address lookup failed for ${address}. Retrying with symbol: ${bagsToken.symbol}`)
       try {
-        const fallbackRes = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${bagsToken.symbol}`, {
+        const fallbackRes = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${fallbackBagsToken.symbol}`, {
           method: "GET",
           next: { revalidate: 15 }
         })
@@ -195,7 +178,7 @@ export async function POST(request: Request) {
           // Filter pairs to find one that matches our address or is likely the same token
           const matchingPair = fallbackData.pairs?.find((p: { baseToken?: { address?: string, symbol?: string } }) => 
             p.baseToken?.address?.toLowerCase() === address.toLowerCase() ||
-            p.baseToken?.symbol?.toLowerCase() === bagsToken.symbol.toLowerCase()
+            p.baseToken?.symbol?.toLowerCase() === fallbackBagsToken.symbol.toLowerCase()
           )
           if (matchingPair) {
             if (process.env.NODE_ENV === "development") {
@@ -214,84 +197,83 @@ export async function POST(request: Request) {
     let dexTokenName: string | null = null
     let dexTokenSymbol: string | null = null
     let dexPrice: number | null = null
+    let highestPair: DexPair | null = null
 
     if (rawDex?.pairs && Array.isArray(rawDex.pairs) && rawDex.pairs.length > 0) {
       // Prioritize Solana chain
-      const solanaPairs = rawDex.pairs.filter((p: { chainId: string }) => p.chainId === 'solana')
+      const solanaPairs = rawDex.pairs.filter((p: DexPair) => p.chainId === 'solana')
       const targetPairs = solanaPairs.length > 0 ? solanaPairs : rawDex.pairs
 
-      const highestPair = [...targetPairs].sort((a: { liquidity?: { usd?: number } }, b: { liquidity?: { usd?: number } }) => {
+      highestPair = [...targetPairs].sort((a: DexPair, b: DexPair) => {
         const liqA = a.liquidity?.usd || 0
         const liqB = b.liquidity?.usd || 0
         return liqB - liqA
       })[0]
 
-      dexLiquidity = highestPair.liquidity?.usd || null
-      dexVolume = highestPair.volume?.h24 || null
-      dexTokenName = highestPair.baseToken?.name || null
-      dexTokenSymbol = highestPair.baseToken?.symbol || null
-      dexPrice = highestPair.priceUsd ? parseFloat(highestPair.priceUsd) : null
-      
-      if (process.env.NODE_ENV === "development") {
+      dexLiquidity = roundMoney(targetPairs.reduce((sum: number, pair: DexPair) => sum + (pair.liquidity?.usd || 0), 0))
+      dexVolume = roundMoney(targetPairs.reduce((sum: number, pair: DexPair) => sum + (pair.volume?.h24 || 0), 0))
+
+      if (highestPair) {
+        dexTokenName = highestPair.baseToken?.name || null
+        dexTokenSymbol = highestPair.baseToken?.symbol || null
+        dexPrice = highestPair.priceUsd ? parseFloat(highestPair.priceUsd) : null
+      }
+
+      if (process.env.NODE_ENV === "development" && highestPair) {
         console.log(`[SCAN_ENGINE] Dex Best Pair: ${highestPair.pairAddress} | Chain: ${highestPair.chainId} | Liq: ${dexLiquidity} | Vol: ${dexVolume} | Price: ${dexPrice}`)
       }
     }
 
-    let holdersCount: number | null = null
-    // Extract total from paginated unique owner set
-    if (rawHelius && typeof rawHelius === 'object' && 'total' in rawHelius) {
-      holdersCount = (rawHelius as { total: number }).total
+    if (birdeyeToken) {
+      dexLiquidity = birdeyeToken.liquidity ?? dexLiquidity
+      dexVolume = birdeyeToken.volume ?? dexVolume
+      dexTokenName = birdeyeToken.name || dexTokenName
+      dexTokenSymbol = birdeyeToken.symbol || dexTokenSymbol
+      dexPrice = birdeyeToken.price ?? dexPrice
+
+      if (!highestPair) {
+        highestPair = {
+          pairAddress: "birdeye",
+          chainId: "solana",
+          liquidity: { usd: birdeyeToken.liquidity || undefined },
+          volume: { h24: birdeyeToken.volume || undefined },
+          baseToken: {
+            name: birdeyeToken.name || undefined,
+            symbol: birdeyeToken.symbol || undefined,
+            address,
+          },
+          priceUsd: birdeyeToken.price !== null ? String(birdeyeToken.price) : undefined,
+          pairCreatedAt: parseTimestamp(birdeyeToken.createdAt || null) || undefined,
+          info: {
+            imageUrl: birdeyeToken.image || undefined,
+            socials: birdeyeToken.twitter ? [{ type: "twitter", url: birdeyeToken.twitter }] : [],
+            websites: birdeyeToken.website ? [{ url: birdeyeToken.website }] : [],
+          },
+        }
+      }
     }
 
-    // --- STRATEGIC FALLBACK: If 0 or null, treat as 'Data unavailable' ---
-    if (holdersCount === 0) holdersCount = null
+    const holderSnapshot = HELIUS_API_KEY
+      ? await fetchHolderSnapshot(address, HELIUS_API_KEY)
+      : { holdersCount: null, topHolderPct: null, whaleWarning: false, holderBreakdown: [] }
+    const creatorBehavior = HELIUS_API_KEY
+      ? await fetchHeliusCreatorBehavior(rawHeliusAsset, HELIUS_API_KEY)
+      : { creatorAddress: null, createdTokens: null, source: null }
+    const holdersCount = holderSnapshot.holdersCount ?? birdeyeToken?.holders ?? null
+    const topHolderPct = holderSnapshot.topHolderPct
+    const whaleWarning = holderSnapshot.whaleWarning
+    const holderBreakdown = holderSnapshot.holderBreakdown
 
     if (process.env.NODE_ENV === "development") {
       console.log("HOLDER DEBUG:", {
         address,
-        helius_holders: holdersCount !== null ? holdersCount : "Data unavailable"
+        helius_holders: holdersCount !== null ? holdersCount : "Data unavailable",
+        topHolderPct,
       })
     }
 
-    // --- WHALE/TOP HOLDER DETECTION via Helius ---
-    let topHolderPct: number | null = null
-    let whaleWarning = false
-    if (holdersCount && holdersCount > 0 && HELIUS_API_KEY) {
-      try {
-        const topRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            jsonrpc: "2.0", id: "whale",
-            method: "getTokenAccounts",
-            params: { mint: address, page: 1, limit: 1000 }
-          })
-        })
-        if (topRes.ok) {
-          const topData = await topRes.json()
-          const accounts: { amount?: number }[] = topData.result?.token_accounts || []
-          if (accounts.length > 0) {
-            // Sort by amount descending, take top 10
-            const sorted = accounts
-              .map(a => a.amount || 0)
-              .sort((a, b) => b - a)
-            const totalSupply = sorted.reduce((sum, a) => sum + a, 0)
-            if (totalSupply > 0) {
-              const top10Sum = sorted.slice(0, 10).reduce((sum, a) => sum + a, 0)
-              topHolderPct = Math.round((top10Sum / totalSupply) * 10000) / 100 // 2 decimal %
-              whaleWarning = topHolderPct > 50
-            }
-          }
-        }
-      } catch (e) {
-        console.warn("[SCAN_ENGINE] Whale detection error:", e)
-      }
-    }
-
     // --- STEP 3: PREPARE VARIABLES WITH FAILSAFES ---
-    const status = bagsToken?.status ? classifyTokenStatus(bagsToken.status) : "unknown"
-    
-    // Liquidity Failsafe: Dex > Bags > null (Discovery Phase)
+    // Liquidity Failsafe: Birdeye/Dex > fallback metadata > null
     const liquidity = (dexLiquidity !== null && dexLiquidity !== undefined) 
       ? dexLiquidity 
       : (bagsToken?.liquidity || null)
@@ -302,9 +284,32 @@ export async function POST(request: Request) {
       : (bagsToken?.volume || bagsToken?.volume24h || null)
 
     const holders = holdersCount || null
-    // Increment by 1 to include the current token (1 = First time creator)
-    const creator_tokens = (bagsToken?.creatorTokens || bagsToken?.creator_tokens || 0) + 1
-    // const suspicious_creator = bagsToken?.creatorFlag || bagsToken?.creator_suspicious || false
+    const creatorTokenBase = typeof bagsToken?.creatorTokens === "number"
+      ? bagsToken.creatorTokens
+      : typeof bagsToken?.creator_tokens === "number"
+        ? bagsToken.creator_tokens
+        : null
+    const creator_tokens = creatorBehavior.createdTokens
+      ?? (creatorTokenBase !== null ? creatorTokenBase + 1 : null)
+      ?? (creatorBehavior.creatorAddress ? 1 : null)
+    const metadataCompleteness = [
+      bagsToken?.image || highestPair?.info?.imageUrl,
+      bagsToken?.website || highestPair?.info?.websites?.[0]?.url,
+      bagsToken?.twitter || highestPair?.info?.socials?.find((s) => s.type === "twitter")?.url,
+      bagsToken?.description,
+    ].filter(Boolean).length
+    const ageHours = extractAgeHours([
+      highestPair?.pairCreatedAt,
+      bagsToken?.pairCreatedAt,
+      bagsToken?.createdAt,
+      bagsToken?.created_at,
+      bagsToken?.launchTime,
+      bagsToken?.launchedAt,
+    ])
+    const status = bagsToken?.status
+      ? classifyTokenStatus(bagsToken.status)
+      : inferTokenStatus(liquidity, volume, holders, ageHours)
+    const volumeLiquidityRatio = liquidity && volume && liquidity > 0 ? volume / liquidity : null
 
     if (process.env.NODE_ENV === "development") {
       console.log("[SCAN_ENGINE] Final Metrics Audit:", {
@@ -313,181 +318,149 @@ export async function POST(request: Request) {
         volume,
         holders,
         creator_tokens,
-        status
+        status,
+        metadataCompleteness,
+        ageHours,
       })
     }
 
-    // --- STEP 4: OPPORTUNITY-FIRST INTELLIGENCE ENGINE (Threshold-Based Model) ---
-    // GOAL: Transparent scoring where each metric contributes clearly to the final Entry Score.
-    let score = 50 // Base score
+    // --- STEP 4: RISK-CAPPED INTELLIGENCE ENGINE ---
     const signals: string[] = []
-    let validSignalsCount = 0
+    const liquidityScore = getLiquidityScore(liquidity)
+    const holderScore = getHolderScore(holders)
+    const whaleScore = getWhaleScore(topHolderPct)
+    const creatorScore = getCreatorScore(creator_tokens)
+    const metadataTrustScore = getMetadataTrustScore(metadataCompleteness)
+    const ageScore = getAgeScore(ageHours, status)
+    const volumeScore = getVolumeScore(volume)
+    const efficiencyScore = getEfficiencyScore(volumeLiquidityRatio)
+    const marketReadinessScore = getMarketReadinessScore(status, liquidity, volume, highestPair)
 
-    // A. LIQUIDITY SCORING
-    if (liquidity !== null && liquidity > 0) {
-      validSignalsCount++
-      if (liquidity < 100) {
-        score -= 30
-        signals.push("Critically weak liquidity depth")
-      } else if (liquidity < 300) {
-        score -= 20
-        signals.push("Low liquidity baseline")
-      } else if (liquidity < 1000) {
-        score -= 10
-        signals.push("Developing liquidity node")
-      } else if (liquidity <= 20000) {
-        score += 5
-        signals.push("Steady liquidity foundation")
-      } else if (liquidity > 20000) {
-        score += 15
-        signals.push("Strong liquidity depth")
-      }
-    } else {
-      signals.push("Market data not available yet (Discovery phase)")
+    const qualityScore = clampScore(weightedAverage([
+      { score: liquidityScore, weight: 26 },
+      { score: holderScore, weight: 16 },
+      { score: whaleScore, weight: 18 },
+      { score: creatorScore, weight: 16 },
+      { score: metadataTrustScore, weight: 10 },
+      { score: ageScore, weight: 14 },
+    ]))
+
+    const momentumScore = clampScore(weightedAverage([
+      { score: volumeScore, weight: 40 },
+      { score: efficiencyScore, weight: 35 },
+      { score: marketReadinessScore, weight: 25 },
+    ]))
+
+    const dataCoverageScore = getDataCoverageScore([
+      liquidity !== null,
+      volume !== null,
+      holders !== null,
+      topHolderPct !== null,
+      dexPrice !== null,
+      metadataCompleteness > 0,
+      ageHours !== null,
+    ])
+    const sourceAgreementScore = getSourceAgreementScore(
+      bagsToken?.name,
+      dexTokenName,
+      bagsToken?.symbol,
+      dexTokenSymbol,
+    )
+    const confidenceScore = clampScore(weightedAverage([
+      { score: dataCoverageScore, weight: 55 },
+      { score: sourceAgreementScore, weight: 25 },
+      { score: highestPair ? 85 : 35, weight: 20 },
+    ]))
+
+    const { cap: riskCap, reasons: riskCapReasons } = getRiskCap({
+      liquidity,
+      topHolderPct,
+      volumeLiquidityRatio,
+      creatorTokens: creator_tokens,
+      ageHours,
+      metadataCompleteness,
+      status,
+      hasLiveMarket: !!highestPair,
+    })
+
+    if (riskCapReasons.length > 0) {
+      signals.push(`Score is capped at ${riskCap}/100 because ${riskCapReasons.slice(0, 2).join(" and ")}`)
     }
-
-    // B. HOLDER SCORING
-    if (holders !== null && holders > 0) {
-      validSignalsCount++
-      if (holders < 10) {
-        score -= 20
-        signals.push("Extreme holder centralization")
-      } else if (holders <= 50) {
-        score -= 10
-        signals.push("Limited holder distribution")
-      } else if (holders <= 200) {
-        score += 5
-        signals.push("Healthy holder growth")
-      } else if (holders > 200) {
-        score += 10
-        signals.push("Strong holder distribution")
-      }
-    } else {
-        signals.push("Holder distribution scanning...")
+    if (qualityScore >= 75) {
+      signals.push("Market structure looks strong across depth, distribution, and creator history")
+    } else if (qualityScore < 45) {
+      signals.push("Market structure is still weak across the main scan checks")
     }
-
-    // C. VOLUME SCORING
-    if (volume !== null && volume > 0) {
-      validSignalsCount++
-      if (volume < 500) {
-        score -= 5
-        signals.push("Low market activity")
-      } else if (volume >= 1000 && volume <= 5000) {
-        score += 5
-        signals.push("Active market node")
-      } else if (volume > 5000) {
-        score += 10
-        signals.push("High trading momentum")
-      }
+    if (momentumScore >= 75) {
+      signals.push("Trading activity looks efficient for the available liquidity")
+    } else if (momentumScore < 45) {
+      signals.push("Trading activity is still too weak or uneven")
     }
-
-    // D. MOMENTUM RATIO (Volume / Liquidity)
-    if (liquidity && volume && liquidity > 0 && volume > 0) {
-      const ratio = volume / liquidity
-      if (ratio < 0.2) {
-        score -= 5
-        signals.push("Weak buyer interest relative to liquidity")
-      } else if (ratio >= 0.5 && ratio <= 2) {
-        score += 10
-        signals.push("Healthy trading velocity")
-      } else if (ratio > 3) {
-        score -= 10
-        signals.push("Suspicious activity vs liquidity depth")
-      }
+    if (metadataCompleteness >= 3) {
+      signals.push("Project metadata is filled out across multiple sources")
+    } else if (metadataCompleteness === 0) {
+      signals.push("Project metadata is still very limited")
     }
-
-    // E. CREATOR SCORING (1 = First-time, >5 = Risk)
+    const ownershipSignal = getOwnershipSignal(holders, topHolderPct, holderBreakdown)
+    if (ownershipSignal) {
+      signals.push(ownershipSignal)
+    }
     if (creator_tokens === 1) {
-      score += 5
-      signals.push("Single-token creator")
-    } else if (creator_tokens > 5) {
-      score -= 15
-      signals.push("High-frequency relauncher history")
+      signals.push("Creator wallet appears to be on its first tracked token launch")
+    } else if (creator_tokens !== null && creator_tokens > 1) {
+      signals.push(`Creator wallet has launched ${creator_tokens} tracked tokens`)
+    } else if (creator_tokens === null) {
+      signals.push("Creator launch history is not available on the current data plan")
     }
-
-    // F. EARLY STAGE ADJUSTMENT
+    if (ageHours !== null) {
+      if (ageHours < 6) {
+        signals.push(`Token is very new (${formatAge(ageHours)} old)`)
+      } else if (ageHours >= 72) {
+        signals.push(`Token has stayed live past the first volatility window (${formatAge(ageHours)} old)`)
+      }
+    }
     if (status === "pre-graduation" || status === "pre-launch") {
-      score -= 5
-      signals.push("Early discovery uncertainty premium")
+      signals.push("Token is still in an early discovery phase")
+    }
+    if (confidenceScore >= 80) {
+      signals.push("Scan data agrees well across the available sources")
+    } else if (confidenceScore < 50) {
+      signals.push("Scan confidence is limited because some data is still missing")
     }
 
-    // G. WHALE SCORING
-    if (topHolderPct !== null) {
-      validSignalsCount++
-      if (topHolderPct > 80) {
-        score -= 20
-        signals.push(`Top 10 wallets hold ${topHolderPct}% — extreme concentration`)
-      } else if (topHolderPct > 50) {
-        score -= 10
-        signals.push(`Top 10 wallets hold ${topHolderPct}% — high concentration`)
-      } else if (topHolderPct <= 30) {
-        score += 5
-        signals.push(`Top 10 wallets hold ${topHolderPct}% — healthy distribution`)
-      }
-    }
+    const confidenceAdjustment = confidenceScore >= 80 ? 4 : confidenceScore >= 60 ? 0 : confidenceScore >= 40 ? -4 : -8
+    const blendedScore = clampScore(weightedAverage([
+      { score: qualityScore, weight: 62 },
+      { score: momentumScore, weight: 38 },
+    ]) + confidenceAdjustment)
+    const score = Math.min(blendedScore, riskCap)
 
-    // H. DATA CONFIDENCE LAYER
     let confidence = "LOW"
-    if (validSignalsCount >= 3) confidence = "HIGH"
-    else if (validSignalsCount >= 2) confidence = "MEDIUM"
+    if (confidenceScore >= 75) confidence = "HIGH"
+    else if (confidenceScore >= 50) confidence = "MEDIUM"
 
-    // I. FINAL SCORE CLAMPING & ROUNDING
-    score = Math.round(score)
-    if (score > 100) score = 100
-    if (score < 0) score = 0
-
-    // J. SIGNAL INTERPRETATION
     let label = "WATCH SIGNAL"
-    if (score >= 80) label = "STRONG OPPORTUNITY"
-    else if (score >= 60) label = "GOOD ENTRY"
-    else if (score < 35) label = "WEAK ENTRY"
+    if (score >= 82 && riskCap >= 82 && confidence === "HIGH") label = "STRONG OPPORTUNITY"
+    else if (score >= 65) label = "GOOD ENTRY"
+    else if (score < 45) label = "WEAK ENTRY"
 
-    // --- GROQ AI INTELLIGENCE SUMMARY (Institutional-Grade) ---
-    let explanation = ""
-    try {
-      const groqPrompt = `Analyze this token like an institutional crypto analyst. Keep it to 2-4 sentences max. Output a clean paragraph with no markdown symbols (**). 
-
-Input:
-- Intelligence Score: ${score}/100 (Higher is stronger opportunity)
-- Verdict: ${label}
-- Confidence: ${confidence}
-- Signals: ${signals.join(", ") || "None"}
-- Liquidity: ${liquidity === null || liquidity === 0 ? "Under evaluation" : "$" + liquidity}
-- Volume (24h): ${volume === null || volume === 0 ? "Under evaluation" : "$" + volume}
-- Holders: ${holders === null || holders === 0 ? "Under evaluation" : holders}
-
-Structure:
-1. Start with the overall verdict (e.g., "Strong entry setup," "Watch zone").
-2. Analyze the market structure, liquidity depth, holder distribution, and momentum.
-3. Conclude with a strategic insight (e.g., accumulation phase, early discovery).
-4. Always end the final sentence with "DYOR."
-
-Rules:
-- NEVER use "risk" or "danger." Use "entry conditions" or "market strength."
-- NO markdown formatting or bolding allowed.
-- Keep tone confident, analytical, and professional.
-- Avoid generic phrases or fluff.`
-
-      const groqRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${GROQ_API_KEY}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [{ role: "user", content: groqPrompt }],
-          temperature: 0.15, // Extremely deterministic for professional tone
-          max_tokens: 150
-        })
-      })
-
-      if (groqRes.ok) {
-        const groqData = await groqRes.json()
-        explanation = groqData.choices?.[0]?.message?.content?.trim() || "Intelligence summary unavailable."
-      } else {
-        explanation = `${label} entry conditions with a ${confidence} confidence rating. Current market structure shows an Intelligence Score of ${score}/100, reflecting early discovery phase dynamics.`
-      }
-    } catch {
-      explanation = `Intelligence analysis indicates ${label} conditions for ${address} with an Intelligence Score of ${score}/100.`
-    }
+    const explanation = buildReadableSummary({
+      label,
+      confidence,
+      qualityScore,
+      momentumScore,
+      confidenceScore,
+      riskCap,
+      riskCapReasons,
+      liquidity,
+      volume,
+      holders,
+      topHolderPct,
+      holderBreakdown,
+      ageHours,
+      status,
+      metadataCompleteness,
+    })
 
     // --- OPPORTUNITY SIGNAL CAPTURE (High-Fidelity Metadata Filter) ---
     if (score >= 65 && liquidity !== null && liquidity > 1000 && volume !== null && volume > 1000) {
@@ -565,6 +538,26 @@ Rules:
         price: dexPrice,
         topHolderPct: topHolderPct,
         whaleWarning: whaleWarning,
+        topHolderLabel: getTopHolderLabel(holders, holderBreakdown.length),
+        holderBreakdown: holderBreakdown,
+        ageHours: ageHours,
+        scoring: {
+          quality: qualityScore,
+          momentum: momentumScore,
+          confidenceScore: confidenceScore,
+          riskCap: riskCap,
+          dataCoverage: dataCoverageScore,
+          metadataTrust: metadataTrustScore,
+        },
+        sources: {
+          price: birdeyeToken?.price !== null && birdeyeToken?.price !== undefined ? "birdeye" : dexPrice !== null ? "dexscreener" : "unknown",
+          liquidity: birdeyeToken?.liquidity !== null && birdeyeToken?.liquidity !== undefined ? "birdeye" : dexLiquidity !== null ? "dexscreener" : bagsToken?.liquidity ? "bags" : "unknown",
+          volume: birdeyeToken?.volume !== null && birdeyeToken?.volume !== undefined ? "birdeye" : dexVolume !== null ? "dexscreener" : bagsToken?.volume || bagsToken?.volume24h ? "bags" : "unknown",
+          holders: holderSnapshot.holdersCount !== null ? "helius" : birdeyeToken?.holders !== null && birdeyeToken?.holders !== undefined ? "birdeye" : "unknown",
+          whale: holderSnapshot.topHolderPct !== null ? "helius" : "unknown",
+          creator: creatorBehavior.createdTokens !== null ? "helius" : creatorTokenBase !== null ? "bags" : "unknown",
+          metadata: fallbackBagsToken ? "bags" : birdeyeToken ? "birdeye" : "unknown",
+        },
       }
     }
 
@@ -611,4 +604,752 @@ function classifyTokenStatus(rawStatus: string): string {
   if (lower.includes("pre-graduation") || lower.includes("pre_grad")) return "pre-graduation"
   if (lower.includes("graduated") || lower.includes("post")) return "graduated"
   return "pre-graduation"
+}
+
+function clampScore(value: number): number {
+  return Math.max(0, Math.min(100, Math.round(value)))
+}
+
+function weightedAverage(entries: Array<{ score: number; weight: number }>): number {
+  const totalWeight = entries.reduce((sum, entry) => sum + entry.weight, 0)
+  if (totalWeight === 0) return 0
+  const weightedSum = entries.reduce((sum, entry) => sum + entry.score * entry.weight, 0)
+  return weightedSum / totalWeight
+}
+
+function getLiquidityScore(liquidity: number | null): number {
+  if (liquidity === null || liquidity <= 0) return 35
+  if (liquidity < 100) return 5
+  if (liquidity < 300) return 15
+  if (liquidity < 1000) return 30
+  if (liquidity < 5000) return 55
+  if (liquidity < 20000) return 80
+  return 95
+}
+
+function getHolderScore(holders: number | null): number {
+  if (holders === null || holders <= 0) return 35
+  if (holders < 10) return 10
+  if (holders <= 50) return 25
+  if (holders <= 200) return 60
+  if (holders <= 1000) return 80
+  return 92
+}
+
+function getWhaleScore(topHolderPct: number | null): number {
+  if (topHolderPct === null) return 40
+  if (topHolderPct > 85) return 5
+  if (topHolderPct > 70) return 20
+  if (topHolderPct > 55) return 40
+  if (topHolderPct > 40) return 60
+  if (topHolderPct > 30) return 75
+  return 92
+}
+
+function getCreatorScore(creatorTokens: number | null): number {
+  if (creatorTokens === null) return 40
+  if (creatorTokens <= 1) return 95
+  if (creatorTokens === 2) return 35
+  if (creatorTokens === 3) return 18
+  if (creatorTokens <= 5) return 8
+  return 0
+}
+
+function getMetadataTrustScore(metadataCompleteness: number): number {
+  if (metadataCompleteness <= 0) return 15
+  if (metadataCompleteness === 1) return 35
+  if (metadataCompleteness === 2) return 60
+  if (metadataCompleteness === 3) return 82
+  return 96
+}
+
+function getAgeScore(ageHours: number | null, status: string): number {
+  if (ageHours === null) {
+    return status === "graduated" ? 70 : 45
+  }
+  if (ageHours < 1) return 10
+  if (ageHours < 6) return 25
+  if (ageHours < 24) return 45
+  if (ageHours < 72) return 65
+  if (ageHours < 168) return 82
+  return 95
+}
+
+function getVolumeScore(volume: number | null): number {
+  if (volume === null || volume <= 0) return 25
+  if (volume < 250) return 10
+  if (volume < 1000) return 30
+  if (volume < 5000) return 55
+  if (volume < 20000) return 78
+  return 92
+}
+
+function getEfficiencyScore(ratio: number | null): number {
+  if (ratio === null) return 35
+  if (ratio < 0.05) return 10
+  if (ratio < 0.2) return 30
+  if (ratio < 0.5) return 60
+  if (ratio <= 2) return 92
+  if (ratio <= 3) return 70
+  if (ratio <= 5) return 35
+  return 10
+}
+
+function getMarketReadinessScore(
+  status: string,
+  liquidity: number | null,
+  volume: number | null,
+  highestPair: DexPair | null,
+): number {
+  if (!highestPair) return 20
+
+  let score = status === "graduated" ? 82 : status === "pre-graduation" ? 58 : 50
+  if (liquidity !== null && liquidity >= 1000) score += 8
+  if (volume !== null && volume >= 1000) score += 10
+  return clampScore(score)
+}
+
+function getDataCoverageScore(dataPoints: boolean[]): number {
+  if (dataPoints.length === 0) return 0
+  const present = dataPoints.filter(Boolean).length
+  return clampScore((present / dataPoints.length) * 100)
+}
+
+function getSourceAgreementScore(
+  bagsName: string | null | undefined,
+  dexName: string | null,
+  bagsSymbol: string | null | undefined,
+  dexSymbol: string | null,
+): number {
+  let score = 35
+  if (bagsName || bagsSymbol) score += 15
+  if (dexName || dexSymbol) score += 15
+
+  if (normalizeValue(bagsName) && normalizeValue(dexName)) {
+    score += normalizeValue(bagsName) === normalizeValue(dexName) ? 20 : -10
+  }
+  if (normalizeValue(bagsSymbol) && normalizeValue(dexSymbol)) {
+    score += normalizeValue(bagsSymbol) === normalizeValue(dexSymbol) ? 25 : -15
+  }
+
+  return clampScore(score)
+}
+
+function normalizeValue(value: string | null | undefined): string {
+  return (value || "").trim().toLowerCase()
+}
+
+function getRiskCap(input: {
+  liquidity: number | null
+  topHolderPct: number | null
+  volumeLiquidityRatio: number | null
+  creatorTokens: number | null
+  ageHours: number | null
+  metadataCompleteness: number
+  status: string
+  hasLiveMarket: boolean
+}) {
+  let cap = 100
+  const reasons: string[] = []
+
+  if (!input.hasLiveMarket && input.status !== "graduated") {
+    cap = Math.min(cap, 55)
+    reasons.push("live market depth is not established yet")
+  }
+  if (input.liquidity !== null) {
+    if (input.liquidity < 150) {
+      cap = Math.min(cap, 35)
+      reasons.push("liquidity is too thin")
+    } else if (input.liquidity < 500) {
+      cap = Math.min(cap, 50)
+      reasons.push("liquidity is still fragile")
+    } else if (input.liquidity < 1200) {
+      cap = Math.min(cap, 65)
+      reasons.push("liquidity is still maturing")
+    }
+  }
+  if (input.topHolderPct !== null) {
+    if (input.topHolderPct > 85) {
+      cap = Math.min(cap, 35)
+      reasons.push("wallet concentration is extreme")
+    } else if (input.topHolderPct > 70) {
+      cap = Math.min(cap, 45)
+      reasons.push("wallet concentration is elevated")
+    } else if (input.topHolderPct > 55) {
+      cap = Math.min(cap, 60)
+      reasons.push("holder concentration stays above healthy range")
+    }
+  }
+  if (input.volumeLiquidityRatio !== null) {
+    if (input.volumeLiquidityRatio > 5) {
+      cap = Math.min(cap, 45)
+      reasons.push("volume is outsized versus liquidity")
+    } else if (input.volumeLiquidityRatio > 3) {
+      cap = Math.min(cap, 60)
+      reasons.push("volume efficiency looks overheated")
+    }
+  }
+  if (input.creatorTokens !== null && input.creatorTokens > 10) {
+    cap = Math.min(cap, 55)
+    reasons.push("creator has a heavy relaunch history")
+  } else if (input.creatorTokens !== null && input.creatorTokens > 5) {
+    cap = Math.min(cap, 70)
+    reasons.push("creator has repeated launch history")
+  }
+  if (input.ageHours !== null && input.ageHours < 2 && (input.liquidity || 0) < 2000) {
+    cap = Math.min(cap, 65)
+    reasons.push("pair is extremely new with shallow depth")
+  }
+  if (input.metadataCompleteness === 0 && input.status !== "graduated") {
+    cap = Math.min(cap, 70)
+    reasons.push("trust surface is not established")
+  }
+
+  return { cap, reasons }
+}
+
+function extractAgeHours(candidates: unknown[]): number | null {
+  const now = Date.now()
+
+  for (const candidate of candidates) {
+    const timestamp = parseTimestamp(candidate)
+    if (timestamp === null) continue
+
+    const diff = now - timestamp
+    if (diff < 0) continue
+
+    return Math.round((diff / 3600000) * 10) / 10
+  }
+
+  return null
+}
+
+function parseTimestamp(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    if (value > 1e12) return value
+    if (value > 1e9) return value * 1000
+  }
+
+  if (typeof value === "string") {
+    const numeric = Number(value)
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return parseTimestamp(numeric)
+    }
+
+    const parsed = Date.parse(value)
+    if (!Number.isNaN(parsed)) return parsed
+  }
+
+  return null
+}
+
+function formatAge(ageHours: number): string {
+  if (ageHours < 24) return `${Math.max(1, Math.round(ageHours))}h`
+  if (ageHours < 24 * 7) return `${Math.round(ageHours / 24)}d`
+  return `${Math.round(ageHours / (24 * 7))}w`
+}
+
+function roundPct(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+function getTopHolderLabel(holders: number | null, breakdownCount: number): string {
+  if (holders !== null && holders <= 1) return "1 Wallet"
+  if (holders !== null && holders <= 10) return `Top ${holders} Wallets`
+  if (breakdownCount > 0 && breakdownCount < 10) return `Top ${breakdownCount} Wallets`
+  return "Top 10 Wallets"
+}
+
+function getOwnershipSignal(
+  holders: number | null,
+  topHolderPct: number | null,
+  holderBreakdown: Array<{ rank: number; pct: number }>,
+): string | null {
+  if (topHolderPct === null) return null
+
+  if (holders !== null && holders <= 1) {
+    return `1 wallet currently holds ${topHolderPct}% of supply`
+  }
+  if (holders !== null && holders <= 10) {
+    return `${holders} wallets currently hold ${topHolderPct}% of supply`
+  }
+  if (topHolderPct > 70) {
+    return `Top 10 wallets hold ${topHolderPct}% of supply`
+  }
+  if (topHolderPct <= 30) {
+    return `Top 10 wallets hold only ${topHolderPct}% of supply`
+  }
+
+  if (holderBreakdown.length > 0) {
+    return `Top 10 wallets hold ${topHolderPct}% of supply`
+  }
+
+  return null
+}
+
+function buildReadableSummary(input: {
+  label: string
+  confidence: string
+  qualityScore: number
+  momentumScore: number
+  confidenceScore: number
+  riskCap: number
+  riskCapReasons: string[]
+  liquidity: number | null
+  volume: number | null
+  holders: number | null
+  topHolderPct: number | null
+  holderBreakdown: Array<{ rank: number; pct: number }>
+  ageHours: number | null
+  status: string
+  metadataCompleteness: number
+}) {
+  const verdict = input.label === "STRONG OPPORTUNITY"
+    ? "This setup looks strong right now"
+    : input.label === "GOOD ENTRY"
+      ? "This setup looks constructive"
+      : input.label === "WEAK ENTRY"
+        ? "This setup still looks weak"
+        : "This setup is still a watchlist candidate"
+
+  const structure = input.qualityScore >= 70
+    ? "Market structure is solid"
+    : input.qualityScore >= 50
+      ? "Market structure is mixed"
+      : "Market structure is still fragile"
+
+  const momentum = input.momentumScore >= 70
+    ? "trading activity is healthy"
+    : input.momentumScore >= 50
+      ? "trading activity is moderate"
+      : "trading activity is still light"
+
+  const ownership = input.holders !== null && input.holders <= 10
+    ? `${input.holders} wallets currently control ${input.topHolderPct ?? "N/A"}% of supply`
+    : input.topHolderPct !== null
+      ? `top wallet concentration sits at ${input.topHolderPct}% across the top 10 wallets`
+      : "holder concentration is still being evaluated"
+
+  const maturity = input.ageHours !== null
+    ? `The token is about ${formatAge(input.ageHours)} old`
+    : input.status === "pre-graduation"
+      ? "The token is still in an early discovery phase"
+      : "Token age is still being evaluated"
+
+  const capLine = input.riskCap < 100 && input.riskCapReasons.length > 0
+    ? `The score is capped at ${input.riskCap}/100 mainly because ${input.riskCapReasons[0]}.`
+    : `Confidence is ${input.confidence.toLowerCase()} with a data quality score of ${input.confidenceScore}/100.`
+
+  const metadataLine = input.metadataCompleteness >= 3
+    ? "Public project details are present across multiple sources."
+    : input.metadataCompleteness === 0
+      ? "Public project details are still very limited."
+      : "Public project details are only partially filled out."
+
+  return `${verdict}. ${structure} and ${momentum}. ${ownership}. ${maturity}. ${metadataLine} ${capLine} DYOR.`
+}
+
+async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promise<HolderSnapshot> {
+  try {
+    const ownerBalances = new Map<string, number>()
+    const limit = 1000
+    let currentPage = 1
+    const maxPages = 250
+    let expectedTotalAccounts: number | null = null
+    let fetchedTokenAccounts = 0
+    let lastPageSize = 0
+    let snapshotComplete = true
+
+    while (currentPage <= maxPages) {
+      const heliusRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: `holders-${currentPage}`,
+          method: "getTokenAccounts",
+          params: {
+            mint: address,
+            page: currentPage,
+            limit,
+          },
+        }),
+      })
+
+      if (heliusRes.status === 429) {
+        console.error("[SCAN_ENGINE] Helius Rate Limit (429) Triggered")
+        snapshotComplete = false
+        break
+      }
+
+      if (!heliusRes.ok) {
+        snapshotComplete = false
+        break
+      }
+
+      const rawHelius = await heliusRes.json()
+      const reportedTotal = Number(rawHelius.result?.total || 0)
+      if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
+        expectedTotalAccounts = reportedTotal
+      }
+
+      const accounts: { owner?: string; amount?: number }[] = rawHelius.result?.token_accounts || []
+      lastPageSize = accounts.length
+      if (accounts.length === 0) {
+        break
+      }
+
+      fetchedTokenAccounts += accounts.length
+
+      accounts.forEach((account) => {
+        const owner = account.owner || "unknown"
+        const amount = Number(account.amount || 0)
+        ownerBalances.set(owner, (ownerBalances.get(owner) || 0) + amount)
+      })
+
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[SCAN_ENGINE] HELIUS RAW (Page ${currentPage}):`, {
+          total: expectedTotalAccounts,
+          returned: accounts.length,
+          fetchedTokenAccounts,
+        })
+      }
+
+      const reachedReportedEnd = expectedTotalAccounts !== null && fetchedTokenAccounts >= expectedTotalAccounts
+      if (reachedReportedEnd || accounts.length < limit) {
+        break
+      }
+
+      currentPage++
+    }
+
+    if (currentPage > maxPages && lastPageSize === limit) {
+      snapshotComplete = false
+      console.warn(`[SCAN_ENGINE] Holder snapshot reached max page limit for ${address}`)
+    }
+
+    if (ownerBalances.size === 0) {
+      return {
+        holdersCount: null,
+        topHolderPct: null,
+        whaleWarning: false,
+        holderBreakdown: [],
+      }
+    }
+
+    const reachedReportedEnd = expectedTotalAccounts !== null && fetchedTokenAccounts >= expectedTotalAccounts
+    const reachedNaturalEnd = lastPageSize > 0 && lastPageSize < limit
+    if (!reachedReportedEnd && !reachedNaturalEnd) {
+      snapshotComplete = false
+    }
+
+    if (!snapshotComplete) {
+      return {
+        holdersCount: null,
+        topHolderPct: null,
+        whaleWarning: false,
+        holderBreakdown: [],
+      }
+    }
+
+    const sortedBalances = Array.from(ownerBalances.values()).sort((a, b) => b - a)
+    const totalSupply = sortedBalances.reduce((sum, amount) => sum + amount, 0)
+    if (totalSupply <= 0) {
+      return {
+        holdersCount: ownerBalances.size,
+        topHolderPct: null,
+        whaleWarning: false,
+        holderBreakdown: [],
+      }
+    }
+
+    const breakdownCount = Math.min(sortedBalances.length, 10)
+    const holderBreakdown = sortedBalances.slice(0, breakdownCount).map((amount, index) => ({
+      rank: index + 1,
+      pct: roundPct((amount / totalSupply) * 100),
+    }))
+    const topSliceSum = sortedBalances.slice(0, breakdownCount).reduce((sum, amount) => sum + amount, 0)
+    const topHolderPct = roundPct((topSliceSum / totalSupply) * 100)
+
+    return {
+      holdersCount: ownerBalances.size,
+      topHolderPct,
+      whaleWarning: topHolderPct > 50,
+      holderBreakdown,
+    }
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Helius holder snapshot error:", error)
+    return {
+      holdersCount: null,
+      topHolderPct: null,
+      whaleWarning: false,
+      holderBreakdown: [],
+    }
+  }
+}
+
+function roundMoney(value: number): number | null {
+  if (!Number.isFinite(value) || value <= 0) return null
+  return Math.round(value * 100) / 100
+}
+
+async function fetchBirdeyeData(
+  path: string,
+  params: Record<string, string>,
+  apiKey: string,
+  label: string,
+) {
+  if (!apiKey) return null
+
+  try {
+    const query = new URLSearchParams(params)
+    const endpoint = `https://public-api.birdeye.so${path}?${query.toString()}`
+    const headerVariants: Record<string, string>[] = [
+      { accept: "application/json", "x-chain": "solana", "X-API-KEY": apiKey },
+      { accept: "application/json", "x-chain": "solana", "x-api-key": apiKey },
+      { accept: "application/json", "x-chain": "solana", Authorization: `Bearer ${apiKey}` },
+    ]
+
+    let res: Response | null = null
+    for (const headers of headerVariants) {
+      res = await fetch(endpoint, {
+        method: "GET",
+        cache: "no-store",
+        headers,
+      })
+
+      if (res.ok) break
+      if (res.status !== 401) break
+    }
+
+    if (!res) return null
+
+    if (res.status === 403) {
+      console.warn(`[SCAN_ENGINE] Birdeye ${label} forbidden on current plan`)
+      return null
+    }
+    if (res.status === 429) {
+      console.warn(`[SCAN_ENGINE] Birdeye ${label} rate limited`)
+      return null
+    }
+    if (!res.ok) {
+      console.warn(`[SCAN_ENGINE] Birdeye ${label} failed with status ${res.status}`)
+      return null
+    }
+
+    const data = await res.json()
+    return data?.data || null
+  } catch (error) {
+    console.warn(`[SCAN_ENGINE] Birdeye ${label} error:`, error)
+    return null
+  }
+}
+
+async function fetchHeliusAsset(address: string, heliusApiKey: string) {
+  if (!heliusApiKey) return null
+
+  try {
+    const res = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "asset",
+        method: "getAsset",
+        params: {
+          id: address,
+          options: {
+            showFungible: true,
+          },
+        },
+      }),
+    })
+
+    if (!res.ok) return null
+    const raw = await res.json()
+    return raw?.result || null
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Helius getAsset error:", error)
+    return null
+  }
+}
+
+async function fetchHeliusCreatorBehavior(
+  asset: Record<string, unknown> | null,
+  heliusApiKey: string,
+): Promise<HeliusCreatorBehavior> {
+  if (!asset || !heliusApiKey) {
+    return { creatorAddress: null, createdTokens: null, source: null }
+  }
+
+  const authorityAddress = pickNestedString(asset, [
+    ["token_info", "mint_authority"],
+    ["authorities", "0", "address"],
+    ["creators", "0", "address"],
+  ])
+
+  if (!authorityAddress) {
+    return { creatorAddress: null, createdTokens: null, source: null }
+  }
+
+  const strategies: Array<{ label: "helius-authority" | "helius-creator"; params: Record<string, unknown> }> = [
+    {
+      label: "helius-authority",
+      params: {
+        authorityAddress,
+        tokenType: "fungible",
+        limit: 1,
+        page: 1,
+        options: { showGrandTotal: true },
+      },
+    },
+    {
+      label: "helius-creator",
+      params: {
+        creatorAddress: authorityAddress,
+        tokenType: "fungible",
+        limit: 1,
+        page: 1,
+        options: { showGrandTotal: true },
+      },
+    },
+  ]
+
+  for (const strategy of strategies) {
+    try {
+      const res = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: strategy.label,
+          method: "searchAssets",
+          params: strategy.params,
+        }),
+      })
+
+      if (!res.ok) continue
+      const raw = await res.json()
+      const total = raw?.result?.total ?? raw?.assets?.total ?? raw?.result?.assets?.total ?? null
+      const totalNumber = typeof total === "number" ? total : Number(total)
+      if (Number.isFinite(totalNumber) && totalNumber > 0) {
+        return {
+          creatorAddress: authorityAddress,
+          createdTokens: totalNumber,
+          source: strategy.label,
+        }
+      }
+    } catch (error) {
+      console.warn(`[SCAN_ENGINE] Helius creator behavior ${strategy.label} error:`, error)
+    }
+  }
+
+  return {
+    creatorAddress: authorityAddress,
+    createdTokens: null,
+    source: null,
+  }
+}
+
+function normalizeBirdeyeToken(
+  overview: Record<string, unknown> | null,
+  price: Record<string, unknown> | null,
+) {
+  if (!overview && !price) return null
+
+  const extensions = asRecord(overview?.extensions)
+  const volume24h = pickNumber(overview, ["v24hUSD", "volume24hUSD", "volume24h", "volume24hUsd", "volume24h_usd"])
+    ?? extractFrameMetric(overview, ["24h", "24H", "h24"], ["volumeUSD", "volume", "volumeUsd", "v"])
+
+  return {
+    name: pickString(overview, ["name", "tokenName"]),
+    symbol: pickString(overview, ["symbol", "tokenSymbol"]),
+    price: pickNumber(price, ["value", "price", "priceUsd", "priceValue"]) ?? pickNumber(overview, ["price", "priceUsd", "value"]),
+    liquidity: pickNumber(price, ["liquidity", "liquidityUsd", "liquidityUSD"]) ?? pickNumber(overview, ["liquidity", "liquidityUsd", "liquidityUSD"]),
+    volume: volume24h,
+    holders: pickNumber(overview, ["holders", "holder", "holderCount", "uniqueHolders"]),
+    totalSupply: pickNumber(overview, ["totalSupply", "supply", "tokenSupply", "total_supply"]),
+    circulatingSupply: pickNumber(overview, ["circulatingSupply", "circulating_supply"]),
+    image: pickString(overview, ["logoURI", "logo_uri", "logo", "image"]) || pickString(extensions, ["imageUrl"]),
+    website: pickString(extensions, ["website"]),
+    twitter: pickString(extensions, ["twitter"]),
+    description: pickString(overview, ["description"]),
+    createdAt: pickNumber(overview, ["createdAt", "created_at", "pairCreatedAt"]) ?? pickString(overview, ["createdAt", "created_at", "pairCreatedAt"]),
+    status: pickString(overview, ["status"]),
+  }
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : null
+}
+
+function pickNestedString(source: Record<string, unknown> | null, paths: string[][]): string | null {
+  if (!source) return null
+
+  for (const path of paths) {
+    let current: unknown = source
+    for (const key of path) {
+      if (Array.isArray(current)) {
+        const index = Number(key)
+        current = Number.isInteger(index) ? current[index] : undefined
+      } else if (current && typeof current === "object") {
+        current = (current as Record<string, unknown>)[key]
+      } else {
+        current = undefined
+      }
+    }
+
+    if (typeof current === "string" && current.trim()) {
+      return current.trim()
+    }
+  }
+
+  return null
+}
+
+function pickNumber(source: Record<string, unknown> | null, keys: string[]): number | null {
+  if (!source) return null
+  for (const key of keys) {
+    const raw = source[key]
+    if (typeof raw === "number" && Number.isFinite(raw)) return raw
+    if (typeof raw === "string") {
+      const parsed = Number(raw)
+      if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return null
+}
+
+function pickString(source: Record<string, unknown> | null, keys: string[]): string | null {
+  if (!source) return null
+  for (const key of keys) {
+    const raw = source[key]
+    if (typeof raw === "string" && raw.trim()) return raw.trim()
+  }
+  return null
+}
+
+function extractFrameMetric(
+  source: Record<string, unknown> | null,
+  frameKeys: string[],
+  metricKeys: string[],
+): number | null {
+  if (!source) return null
+  for (const frameKey of frameKeys) {
+    const frame = asRecord(source[frameKey])
+    const value = pickNumber(frame, metricKeys)
+    if (value !== null) return value
+  }
+  return null
+}
+
+function inferTokenStatus(
+  liquidity: number | null,
+  volume: number | null,
+  holders: number | null,
+  ageHours: number | null,
+): string {
+  if (ageHours !== null && ageHours < 72) return "pre-graduation"
+  if ((liquidity || 0) >= 1000 || (volume || 0) >= 1000 || (holders || 0) >= 200) return "graduated"
+  return "unknown"
 }

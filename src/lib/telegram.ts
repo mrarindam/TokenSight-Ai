@@ -22,6 +22,19 @@ function formatUsdValue(value: number) {
   })
 }
 
+function formatReadableTokenPrice(value: number) {
+  if (value >= 1) {
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+  }
+  if (value >= 0.01) {
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`
+  }
+
+  const decimals = value >= 0.0001 ? 8 : value >= 0.000001 ? 10 : 12
+  const fixed = value.toFixed(decimals).replace(/0+$/, "").replace(/\.$/, "")
+  return `$${fixed}`
+}
+
 /**
  * Send a message via Telegram bot
  */
@@ -140,9 +153,7 @@ export function formatScanMessage(data: {
   const scoreEmoji = data.score >= 80 ? "🟢" : data.score >= 60 ? "🟡" : data.score >= 35 ? "🟠" : "🔴"
   const whaleIcon = data.whaleWarning ? "🐋 " : ""
 
-  const priceStr = data.price !== null
-    ? `$${data.price < 0.01 ? data.price.toExponential(2) : formatUsdValue(data.price)}`
-    : "N/A"
+  const priceStr = data.price !== null ? formatReadableTokenPrice(data.price) : "N/A"
   const liqStr = data.liquidity !== null ? `$${data.liquidity.toLocaleString()}` : "N/A"
   const volStr = data.volume !== null ? `$${data.volume.toLocaleString()}` : "N/A"
   const holdersStr = data.holders !== null ? data.holders.toLocaleString() : "N/A"

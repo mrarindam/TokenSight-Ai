@@ -42,12 +42,27 @@ interface ScanResult {
     liquidity: number;
     volume: number;
     holders: number;
-    creator_tokens: number;
+    creator_tokens: number | null;
     website?: string | null;
     twitter?: string | null;
+    status?: string;
     price?: number | null;
     topHolderPct?: number | null;
+    topHolderLabel?: string;
     whaleWarning?: boolean;
+    holderBreakdown?: Array<{
+      rank: number;
+      pct: number;
+    }>;
+    ageHours?: number | null;
+    scoring?: {
+      quality: number;
+      momentum: number;
+      confidenceScore: number;
+      riskCap: number;
+      dataCoverage: number;
+      metadataTrust: number;
+    };
   };
 }
 
@@ -104,6 +119,25 @@ const renderHighlightedSummary = (text: string) => {
     }
     return part
   })
+}
+
+const formatReadablePrice = (value: number | null | undefined) => {
+  if (value === null || value === undefined || value <= 0) return "N/A"
+  if (value >= 1) {
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })}`
+  }
+  if (value >= 0.01) {
+    return `$${value.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })}`
+  }
+
+  const decimals = value >= 0.0001 ? 8 : value >= 0.000001 ? 10 : 12
+  const fixed = value.toFixed(decimals).replace(/0+$/, "").replace(/\.$/, "")
+  return `$${fixed}`
+}
+
+const formatHolderBreakdownLine = (rank: number, pct: number) => {
+  const walletLabel = rank === 1 ? "Wallet 1" : `Wallet ${rank}`
+  return `${walletLabel}: ${pct}%`
 }
 
 function ScanPageContent() {
@@ -479,15 +513,27 @@ function ScanPageContent() {
                         </h3>
                         <ul className="grid gap-1.5">
                           {result.signals?.map((signalText: string, idx: number) => {
+                            const normalizedSignal = signalText.toLowerCase()
                             let mappedSeverity = "medium"
                             let mappedIcon = Activity
-                            if (signalText.includes("not available") || signalText.includes("discovery")) {
+                            if (normalizedSignal.includes("missing") || normalizedSignal.includes("discovery") || normalizedSignal.includes("evaluated")) {
                               mappedSeverity = "info"
                               mappedIcon = Sparkles
-                            } else if (signalText.includes("Critically") || signalText.includes("limited")) {
+                            } else if (
+                              normalizedSignal.includes("capped")
+                              || normalizedSignal.includes("weak")
+                              || normalizedSignal.includes("fragile")
+                              || normalizedSignal.includes("limited")
+                              || normalizedSignal.includes("concentration")
+                            ) {
                               mappedSeverity = "critical"
                               mappedIcon = ShieldAlert
-                            } else if (signalText.includes("Healthy") || signalText.includes("Strong") || signalText.includes("Broad")) {
+                            } else if (
+                              normalizedSignal.includes("strong")
+                              || normalizedSignal.includes("healthy")
+                              || normalizedSignal.includes("solid")
+                              || normalizedSignal.includes("agrees well")
+                            ) {
                               mappedSeverity = "success"
                               mappedIcon = Zap
                             }
@@ -518,15 +564,12 @@ function ScanPageContent() {
 
                 {/* Metric Cards */}
                 {result.meta && (
-                  <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
-                    {[
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                      {[
                       {
                         label: "Price",
-                        value: (result.meta.price !== null && result.meta.price !== undefined && result.meta.price > 0)
-                          ? result.meta.price < 0.01
-                            ? `$${result.meta.price.toExponential(2)}`
-                            : `$${result.meta.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })}`
-                          : "N/A",
+                        value: formatReadablePrice(result.meta.price),
                         icon: DollarSign
                       },
                       {
@@ -551,7 +594,7 @@ function ScanPageContent() {
                         icon: Users
                       },
                       {
-                        label: "Top 10 Holders",
+                        label: result.meta.topHolderLabel || "Top 10 Wallets",
                         value: (result.meta.topHolderPct !== null && result.meta.topHolderPct !== undefined)
                           ? `${result.meta.topHolderPct}%`
                           : "Scanning...",
@@ -565,24 +608,96 @@ function ScanPageContent() {
                           : "---",
                         icon: WalletCards
                       },
-                    ].map((stat, i) => (
-                      <Card key={i} className={cn(
-                        "glass border-border/40 hover:border-primary/30 transition-colors",
-                        stat.warn && "border-red-500/40 hover:border-red-500/60"
-                      )}>
-                        <CardContent className="p-3 flex flex-col items-center justify-center text-center space-y-1.5">
-                          <div className={cn(
-                            "p-1.5 rounded-md",
-                            stat.warn ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
-                          )}><stat.icon className="h-3.5 w-3.5" /></div>
-                          <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
-                          <div className={cn(
-                            "font-mono text-xs md:text-sm font-bold truncate max-w-full",
-                            stat.warn && "text-red-400"
-                          )}>{stat.value}</div>
+                      ].map((stat, i) => (
+                        <Card key={i} className={cn(
+                          "glass border-border/40 hover:border-primary/30 transition-colors",
+                          stat.warn && "border-red-500/40 hover:border-red-500/60"
+                        )}>
+                          <CardContent className="p-3 flex flex-col items-center justify-center text-center space-y-1.5">
+                            <div className={cn(
+                              "p-1.5 rounded-md",
+                              stat.warn ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
+                            )}><stat.icon className="h-3.5 w-3.5" /></div>
+                            <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
+                            <div className={cn(
+                              "font-mono text-xs md:text-sm font-bold truncate max-w-full",
+                              stat.warn && "text-red-400"
+                            )}>{stat.value}</div>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+
+                    {!!result.meta.holderBreakdown?.length && (result.meta.holders !== null && result.meta.holders <= 10) && (
+                      <Card className="glass border-border/40 hover:border-primary/30 transition-colors">
+                        <CardContent className="p-4 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <div className={cn(
+                              "p-1.5 rounded-md",
+                              result.meta.whaleWarning ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
+                            )}>
+                              {result.meta.whaleWarning ? <Skull className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Holder Breakdown</div>
+                              <div className="text-xs font-semibold text-foreground/90">
+                                {result.meta.holders === 1 ? "Single wallet ownership" : `${result.meta.holders} wallets currently hold the supply`}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {result.meta.holderBreakdown.map((wallet) => (
+                              <div
+                                key={wallet.rank}
+                                className="rounded-lg border border-border/20 bg-muted/10 px-3 py-2 text-[11px] font-medium"
+                              >
+                                {formatHolderBreakdownLine(wallet.rank, wallet.pct)}
+                              </div>
+                            ))}
+                          </div>
                         </CardContent>
                       </Card>
-                    ))}
+                    )}
+
+                    {result.meta.scoring && (
+                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        {[
+                          {
+                            label: "Quality",
+                            value: `${result.meta.scoring.quality}/100`,
+                            icon: ShieldCheck,
+                            tone: "bg-safe/10 text-safe"
+                          },
+                          {
+                            label: "Momentum",
+                            value: `${result.meta.scoring.momentum}/100`,
+                            icon: Activity,
+                            tone: "bg-blue-500/10 text-blue-400"
+                          },
+                          {
+                            label: "Confidence",
+                            value: `${result.meta.scoring.confidenceScore}/100`,
+                            icon: Sparkles,
+                            tone: "bg-primary/10 text-primary"
+                          },
+                          {
+                            label: "Risk Cap",
+                            value: `${result.meta.scoring.riskCap}/100`,
+                            icon: ShieldAlert,
+                            tone: result.meta.scoring.riskCap < 100 ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"
+                          },
+                        ].map((stat, i) => (
+                          <Card key={i} className="glass border-border/40 hover:border-primary/30 transition-colors">
+                            <CardContent className="p-3 flex flex-col items-center justify-center text-center space-y-1.5">
+                              <div className={cn("p-1.5 rounded-md", stat.tone)}><stat.icon className="h-3.5 w-3.5" /></div>
+                              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
+                              <div className="font-mono text-xs md:text-sm font-bold truncate max-w-full">{stat.value}</div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
 
