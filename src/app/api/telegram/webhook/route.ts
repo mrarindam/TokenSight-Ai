@@ -13,8 +13,10 @@ export async function POST(request: Request) {
     const telegramId = extractUserIdFromUpdate(update)
 
     if (!telegramId) {
-      console.error("[api/telegram/webhook] No telegram ID found in update", update)
-      return NextResponse.json({ ok: false }, { status: 400 })
+      // MUST return 200 for non-message updates (my_chat_member, edited_message, etc.)
+      // Returning 400 causes Telegram to disable the webhook after repeated failures,
+      // which stops the bot from responding to ALL users
+      return NextResponse.json({ ok: true })
     }
 
     const text = update.message?.text?.trim?.() || ""
