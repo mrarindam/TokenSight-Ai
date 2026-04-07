@@ -1,7 +1,28 @@
+export async function DELETE(request: Request) {
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const { id } = await request.json()
+  if (!id) {
+    return NextResponse.json({ error: "Missing portfolio entry ID" }, { status: 400 })
+  }
+  const { error } = await supabaseAdmin
+    .from("user_portfolios")
+    .delete()
+    .eq("id", id)
+    .eq("user_id", session.user.id)
+  if (error) {
+    console.error("[api/portfolio] delete", error)
+    return NextResponse.json({ error: "Failed to delete portfolio entry" }, { status: 500 })
+  }
+  return NextResponse.json({ success: true })
+}
 import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { isValidSolanaAddress } from "@/lib/utils"
 import type { CreatePortfolioPayload } from "@/types/app"
 
 export const dynamic = "force-dynamic"
@@ -41,6 +62,10 @@ export async function POST(request: Request) {
 
   if (!tokenAddress || !tokenName || !quantity || !entryPrice) {
     return NextResponse.json({ error: "Missing required portfolio fields" }, { status: 400 })
+  }
+
+  if (!isValidSolanaAddress(tokenAddress)) {
+    return NextResponse.json({ error: "Only Solana or SVM token addresses are allowed in portfolio" }, { status: 400 })
   }
 
   const payload = {

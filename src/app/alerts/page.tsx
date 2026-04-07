@@ -2,10 +2,22 @@
 
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
-import { cn } from "@/lib/utils"
+import { cn, fetchTokenPrice, isValidSolanaAddress } from "@/lib/utils"
 import type { PriceAlertRecord } from "@/types/app"
 
 const DEFAULT_API = "/api/alerts"
+
+function formatUsdValue(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: value < 1 ? 6 : 2,
+    maximumFractionDigits: 9,
+  })
+}
+
+function formatDateTime(value?: string | null) {
+  if (!value) return "Never"
+  return new Date(value).toLocaleString()
+}
 
 export default function AlertsPage() {
   const { status } = useSession()
@@ -13,6 +25,8 @@ export default function AlertsPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null)
+  const [priceLoading, setPriceLoading] = useState(false)
   const [formState, setFormState] = useState({
     token_address: "",
     token_name: "",
@@ -26,6 +40,27 @@ export default function AlertsPage() {
       fetchAlerts()
     }
   }, [status])
+
+  useEffect(() => {
+    const tokenAddress = formState.token_address.trim()
+
+    if (!tokenAddress || !isValidSolanaAddress(tokenAddress)) {
+      setCurrentPrice(null)
+      setPriceLoading(false)
+      return
+    }
+
+    setPriceLoading(true)
+    const timeoutId = window.setTimeout(async () => {
+      const price = await fetchTokenPrice(tokenAddress)
+      setCurrentPrice(price)
+      setPriceLoading(false)
+    }, 400)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [formState.token_address])
 
   async function fetchAlerts() {
     setLoading(true)
@@ -46,6 +81,12 @@ export default function AlertsPage() {
     event.preventDefault()
     setError(null)
     setLoading(true)
+
+    if (!isValidSolanaAddress(formState.token_address)) {
+      setError("Only valid Solana / SVM token addresses can be used for alerts")
+      setLoading(false)
+      return
+    }
 
     try {
       const body = {
@@ -133,8 +174,9 @@ export default function AlertsPage() {
                 value={formState.token_address}
                 onChange={(event) => setFormState(prev => ({ ...prev, token_address: event.target.value }))}
                 className="w-full rounded-3xl border border-border/50 bg-background px-4 py-3 text-sm text-foreground outline-none focus:border-primary/70"
-                placeholder="Eg. ABC123..."
+                placeholder="Solana / SVM token address"
               />
+              <p className="text-xs text-muted-foreground">Alerts support Solana and SVM-compatible token addresses only.</p>
             </label>
             <label className="block space-y-2 text-sm">
               <span className="font-semibold">Token Name</span>
@@ -185,6 +227,16 @@ export default function AlertsPage() {
             </label>
           </div>
 
+          <div className="rounded-3xl border border-border/40 bg-background/60 px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="font-semibold">Current live price</span>
+              <span className="text-muted-foreground">Checked from DexScreener best Solana pair</span>
+            </div>
+            <div className="mt-2 text-lg font-bold">
+              {priceLoading ? "Loading..." : currentPrice !== null ? `$${formatUsdValue(currentPrice)}` : "Enter a valid token address to preview live price"}
+            </div>
+          </div>
+
           {error && <div className="rounded-3xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">{error}</div>}
           {successMessage && <div className="rounded-3xl border border-green-400/25 bg-green-500/10 px-4 py-3 text-sm text-green-600">{successMessage}</div>}
 
@@ -203,7 +255,7 @@ export default function AlertsPage() {
 
       <section className="glass rounded-[2rem] border border-border/40 p-8">
         <h2 className="text-xl font-bold tracking-tight">Active Alerts</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Manage your active token alerts and review thresholds.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Manage your active token alerts, review thresholds, and see when alerts last fired. Triggered alerts auto-disable after sending to avoid repeat spam.</p>
 
         <div className="mt-6 overflow-x-auto">
           <table className="min-w-full text-left text-sm">
@@ -212,13 +264,14 @@ export default function AlertsPage() {
                 <th className="px-3 py-3">Token</th>
                 <th className="px-3 py-3">Type</th>
                 <th className="px-3 py-3 text-right">Threshold</th>
+                <th className="px-3 py-3 text-right">Triggered</th>
                 <th className="px-3 py-3 text-right">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/20">
               {alerts.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-muted-foreground">No alerts created yet. Add one to start monitoring token moves.</td>
+                  <td colSpan={5} className="px-3 py-8 text-center text-muted-foreground">No alerts created yet. Add one to start monitoring token moves.</td>
                 </tr>
               ) : (
                 alerts.map((alert) => (
@@ -228,7 +281,11 @@ export default function AlertsPage() {
                       {alert.token_name && <div className="text-[11px] text-muted-foreground">{alert.token_address}</div>}
                     </td>
                     <td className="px-3 py-4">{alert.alert_type.replace("_", " ")}</td>
-                    <td className="px-3 py-4 text-right">{alert.threshold}</td>
+                    <td className="px-3 py-4 text-right">${formatUsdValue(alert.threshold)}</td>
+                    <td className="px-3 py-4 text-right">
+                      <div className="font-semibold">{alert.trigger_count || 0}x</div>
+                      <div className="text-[11px] text-muted-foreground">Last: {formatDateTime(alert.last_triggered_at)}</div>
+                    </td>
                     <td className="px-3 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <span className="rounded-full bg-muted/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{alert.is_active ? "ACTIVE" : "INACTIVE"}</span>

@@ -11,6 +11,13 @@ export interface TelegramMessage {
   parse_mode?: "HTML" | "Markdown" | "MarkdownV2"
 }
 
+function formatUsdValue(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: value < 1 ? 6 : 2,
+    maximumFractionDigits: 9,
+  })
+}
+
 /**
  * Send a message via Telegram bot
  */
@@ -69,8 +76,8 @@ ${emoji} <b>TokenSight Alert</b>
 <b>Token:</b> ${alertData.token_name}
 <b>Type:</b> ${alertData.alert_type.replace(/_/g, " ")}
 
-<b>Threshold:</b> $${alertData.threshold.toFixed(4)}
-<b>Current:</b> $${alertData.current_value.toFixed(4)}
+<b>Threshold:</b> $${formatUsdValue(alertData.threshold)}
+<b>Current:</b> $${formatUsdValue(alertData.current_value)}
 <b>Change:</b> ${(alertData.change_percent > 0 ? "+" : "") + alertData.change_percent.toFixed(2)}%
 
 🔗 <a href="https://tokensightai.tech/scan?token=${alertData.token_address}">View Analysis</a>

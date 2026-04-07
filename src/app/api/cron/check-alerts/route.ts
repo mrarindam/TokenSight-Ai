@@ -8,7 +8,9 @@ export const maxDuration = 60
 interface DexScreenerResponse {
   pairs?: Array<{
     baseToken?: { address: string }
+    chainId?: string
     priceUsd?: string
+    liquidity?: { usd?: number }
     volume?: { h24: number }
   }>
 }
@@ -22,7 +24,17 @@ async function fetchTokenPrice(tokenAddress: string): Promise<number | null> {
     if (!response.ok) return null
 
     const data = (await response.json()) as DexScreenerResponse
-    const pair = data.pairs?.[0]
+    if (!data.pairs || data.pairs.length === 0) {
+      return null
+    }
+
+    const solanaPairs = data.pairs.filter((pair) => pair.chainId === "solana")
+    const candidatePairs = solanaPairs.length > 0 ? solanaPairs : data.pairs
+    const pair = [...candidatePairs].sort((left, right) => {
+      const leftLiquidity = left.liquidity?.usd || 0
+      const rightLiquidity = right.liquidity?.usd || 0
+      return rightLiquidity - leftLiquidity
+    })[0]
     const price = pair?.priceUsd ? parseFloat(pair.priceUsd) : null
 
     return price
@@ -146,6 +158,7 @@ export async function GET(request: Request) {
         await supabaseAdmin
           .from("price_alerts")
           .update({
+            is_active: false,
             trigger_count: (alert.trigger_count || 0) + 1,
             last_triggered_at: new Date().toISOString(),
           })
