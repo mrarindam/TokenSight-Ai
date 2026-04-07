@@ -6,6 +6,22 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 const APP_URL = process.env.NEXTAUTH_URL || "https://tokensightai.tech"
+const LOGIN_URL = `${APP_URL}/login`
+const TELEGRAM_SETTINGS_URL = `${APP_URL}/settings/telegram`
+
+async function getLinkedUserId(telegramId: string) {
+  const { data: user } = await supabase
+    .from("users")
+    .select("id")
+    .eq("telegram_id", telegramId)
+    .maybeSingle()
+
+  return user?.id || null
+}
+
+function getLinkAccountMessage(telegramId: string) {
+  return `🔒 <b>Link your TokenSight account to unlock bot features.</b>\n\nYour Telegram ID is <code>${telegramId}</code>.\n\n1. <a href="${LOGIN_URL}">Log in to TokenSight AI</a>\n2. Open <a href="${TELEGRAM_SETTINGS_URL}">Settings → Telegram</a>\n3. Paste your Telegram ID to complete linking\n\nAfter linking, you can use /scan and /alerts.`
+}
 
 export async function POST(request: Request) {
   try {
@@ -24,12 +40,15 @@ export async function POST(request: Request) {
 
     const text = update.message?.text?.trim?.() || ""
     const lowerText = String(text).toLowerCase()
+    const linkedUserId = telegramId ? await getLinkedUserId(telegramId) : null
 
     // /start — Welcome + ID
     if (lowerText === "/start") {
       await sendTelegramMessage({
         chat_id: replyChatId!,
-        text: `✅ <b>TokenSight AI is ready!</b>\n\nYour Telegram ID is <code>${telegramId}</code>. Copy this and paste it into your app settings to receive alerts.\n\n<b>Commands:</b>\n/scan &lt;address&gt; — Scan any Solana token\n/alerts — View your active alerts\n/help — Show all commands`,
+        text: linkedUserId
+          ? `✅ <b>TokenSight AI is already linked.</b>\n\nYour Telegram ID is <code>${telegramId}</code>.\n\nYou can now use:\n/scan &lt;address&gt; — Scan any Solana token\n/alerts — View your active alerts\n/help — Show all commands`
+          : `✅ <b>TokenSight AI is ready!</b>\n\n${getLinkAccountMessage(telegramId || "")}`,
       })
       return NextResponse.json({ ok: true })
     }
@@ -38,13 +57,27 @@ export async function POST(request: Request) {
     if (lowerText === "/help") {
       await sendTelegramMessage({
         chat_id: replyChatId!,
-        text: `🤖 <b>TokenSight AI Commands</b>\n\n/scan &lt;address&gt; — Scan any Solana token\n/alerts — View your active price alerts\n/start — Get your Telegram ID\n/help — Show this message\n\n🔗 <a href="${APP_URL}">Open TokenSight AI</a>`,
+        text: linkedUserId
+          ? `🤖 <b>TokenSight AI Commands</b>\n\n/scan &lt;address&gt; — Scan any Solana token\n/alerts — View your active price alerts\n/help — Show this message\n\n🔗 <a href="${APP_URL}">Open TokenSight AI</a>`
+          : `🤖 <b>TokenSight AI Commands</b>\n\n/start — Get your Telegram ID\n/help — Show this message\n\n${getLinkAccountMessage(telegramId || "")}`,
       })
       return NextResponse.json({ ok: true })
     }
 
     // /scan <address> — Run a scan from TG
     if (lowerText.startsWith("/scan")) {
+      if (!telegramId) {
+        return NextResponse.json({ ok: true })
+      }
+
+      if (!linkedUserId) {
+        await sendTelegramMessage({
+          chat_id: replyChatId!,
+          text: `🔒 <b>Scan is only available for linked TokenSight accounts.</b>\n\n${getLinkAccountMessage(telegramId)}`,
+        })
+        return NextResponse.json({ ok: true })
+      }
+
       const parts = text.split(/\s+/)
       const tokenAddress = parts[1]
 
@@ -116,17 +149,10 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: true })
       }
 
-      // Find the user by telegram_id
-      const { data: user } = await supabase
-        .from("users")
-        .select("id")
-        .eq("telegram_id", telegramId.toString())
-        .single()
-
-      if (!user) {
+      if (!linkedUserId) {
         await sendTelegramMessage({
           chat_id: replyChatId!,
-          text: `⚠️ Your Telegram isn't linked to a TokenSight account yet.\n\nGo to <a href="${APP_URL}/settings/telegram">Settings → Telegram</a> to link.`,
+          text: `🔒 <b>Alerts are only available for linked TokenSight accounts.</b>\n\n${getLinkAccountMessage(telegramId)}`,
         })
         return NextResponse.json({ ok: true })
       }
@@ -134,7 +160,7 @@ export async function POST(request: Request) {
       const { data: alerts } = await supabase
         .from("price_alerts")
         .select("token_name, token_address, alert_type, threshold, is_active, trigger_count")
-        .eq("user_id", user.id)
+        .eq("user_id", linkedUserId)
         .eq("is_active", true)
         .limit(10)
 
@@ -162,7 +188,9 @@ export async function POST(request: Request) {
     if (lowerText) {
       await sendTelegramMessage({
         chat_id: replyChatId!,
-        text: `🤖 Unknown command. Send /help to see available commands.`,
+        text: linkedUserId
+          ? `🤖 Unknown command. Send /help to see available commands.`
+          : `🔒 <b>This bot feature requires a linked TokenSight account.</b>\n\n${getLinkAccountMessage(telegramId || "")}`,
       })
       return NextResponse.json({ ok: true })
     }
