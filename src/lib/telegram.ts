@@ -11,6 +11,10 @@ export interface TelegramMessage {
   parse_mode?: "HTML" | "Markdown" | "MarkdownV2"
 }
 
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined
+}
+
 function formatUsdValue(value: number) {
   return value.toLocaleString(undefined, {
     minimumFractionDigits: value < 1 ? 6 : 2,
@@ -88,9 +92,31 @@ ${emoji} <b>TokenSight Alert</b>
  * Extract Telegram user ID from message
  */
 export function extractUserIdFromUpdate(update: Record<string, unknown>): string | null {
-  const message = update.message as Record<string, unknown> | undefined
-  const from = message?.from as Record<string, unknown> | undefined
+  const message = getRecord(update.message)
+  const editedMessage = getRecord(update.edited_message)
+  const callbackQuery = getRecord(update.callback_query)
+  const myChatMember = getRecord(update.my_chat_member)
+
+  const from = getRecord(message?.from)
+    ?? getRecord(editedMessage?.from)
+    ?? getRecord(callbackQuery?.from)
+    ?? getRecord(myChatMember?.from)
+
   return from?.id?.toString() || null
+}
+
+export function extractChatIdFromUpdate(update: Record<string, unknown>): string | null {
+  const message = getRecord(update.message)
+  const editedMessage = getRecord(update.edited_message)
+  const callbackQuery = getRecord(update.callback_query)
+  const myChatMember = getRecord(update.my_chat_member)
+
+  const chat = getRecord(message?.chat)
+    ?? getRecord(editedMessage?.chat)
+    ?? getRecord(getRecord(callbackQuery?.message)?.chat)
+    ?? getRecord(myChatMember?.chat)
+
+  return chat?.id?.toString() || null
 }
 
 /**

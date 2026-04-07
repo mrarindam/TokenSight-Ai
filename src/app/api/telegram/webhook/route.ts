@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { sendTelegramMessage, extractUserIdFromUpdate, formatScanMessage } from "@/lib/telegram"
+import { sendTelegramMessage, extractChatIdFromUpdate, extractUserIdFromUpdate, formatScanMessage } from "@/lib/telegram"
 import { supabase } from "@/lib/supabaseClient"
 
 export const dynamic = "force-dynamic"
@@ -11,13 +11,16 @@ export async function POST(request: Request) {
   try {
     const update = await request.json()
     const telegramId = extractUserIdFromUpdate(update)
+    const chatId = extractChatIdFromUpdate(update)
 
-    if (!telegramId) {
+    if (!telegramId && !chatId) {
       // MUST return 200 for non-message updates (my_chat_member, edited_message, etc.)
       // Returning 400 causes Telegram to disable the webhook after repeated failures,
       // which stops the bot from responding to ALL users
       return NextResponse.json({ ok: true })
     }
+
+    const replyChatId = chatId || telegramId
 
     const text = update.message?.text?.trim?.() || ""
     const lowerText = String(text).toLowerCase()
@@ -25,7 +28,7 @@ export async function POST(request: Request) {
     // /start — Welcome + ID
     if (lowerText === "/start") {
       await sendTelegramMessage({
-        chat_id: telegramId,
+        chat_id: replyChatId!,
         text: `✅ <b>TokenSight AI is ready!</b>\n\nYour Telegram ID is <code>${telegramId}</code>. Copy this and paste it into your app settings to receive alerts.\n\n<b>Commands:</b>\n/scan &lt;address&gt; — Scan any Solana token\n/alerts — View your active alerts\n/help — Show all commands`,
       })
       return NextResponse.json({ ok: true })
@@ -34,7 +37,7 @@ export async function POST(request: Request) {
     // /help — Command list
     if (lowerText === "/help") {
       await sendTelegramMessage({
-        chat_id: telegramId,
+        chat_id: replyChatId!,
         text: `🤖 <b>TokenSight AI Commands</b>\n\n/scan &lt;address&gt; — Scan any Solana token\n/alerts — View your active price alerts\n/start — Get your Telegram ID\n/help — Show this message\n\n🔗 <a href="${APP_URL}">Open TokenSight AI</a>`,
       })
       return NextResponse.json({ ok: true })
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
 
       if (!tokenAddress || tokenAddress.length < 10) {
         await sendTelegramMessage({
-          chat_id: telegramId,
+          chat_id: replyChatId!,
           text: `⚠️ Please provide a token address.\n\n<b>Usage:</b> /scan &lt;token_address&gt;\n<b>Example:</b> /scan So11111111111111111111111111111111111111112`,
         })
         return NextResponse.json({ ok: true })
@@ -55,7 +58,7 @@ export async function POST(request: Request) {
 
       // Send "scanning..." feedback
       await sendTelegramMessage({
-        chat_id: telegramId,
+        chat_id: replyChatId!,
         text: `🔍 Scanning <code>${tokenAddress}</code>...\nThis may take a few seconds.`,
       })
 
@@ -70,7 +73,7 @@ export async function POST(request: Request) {
         if (!scanRes.ok) {
           const err = await scanRes.json().catch(() => ({}))
           await sendTelegramMessage({
-            chat_id: telegramId,
+            chat_id: replyChatId!,
             text: `❌ Scan failed: ${err.error || `HTTP ${scanRes.status}`}`,
           })
           return NextResponse.json({ ok: true })
@@ -79,7 +82,7 @@ export async function POST(request: Request) {
         const scanData = await scanRes.json()
 
         await sendTelegramMessage({
-          chat_id: telegramId,
+          chat_id: replyChatId!,
           text: formatScanMessage({
             tokenName: scanData.contractName || "Unknown",
             tokenSymbol: scanData.contractName || "???",
@@ -99,7 +102,7 @@ export async function POST(request: Request) {
       } catch (err) {
         console.error("[telegram/webhook] Scan error:", err)
         await sendTelegramMessage({
-          chat_id: telegramId,
+          chat_id: replyChatId!,
           text: `❌ Scan failed. Please try again later.`,
         })
       }
@@ -109,6 +112,10 @@ export async function POST(request: Request) {
 
     // /alerts — Show user's active alerts
     if (lowerText === "/alerts") {
+      if (!telegramId) {
+        return NextResponse.json({ ok: true })
+      }
+
       // Find the user by telegram_id
       const { data: user } = await supabase
         .from("users")
@@ -118,7 +125,7 @@ export async function POST(request: Request) {
 
       if (!user) {
         await sendTelegramMessage({
-          chat_id: telegramId,
+          chat_id: replyChatId!,
           text: `⚠️ Your Telegram isn't linked to a TokenSight account yet.\n\nGo to <a href="${APP_URL}/settings/telegram">Settings → Telegram</a> to link.`,
         })
         return NextResponse.json({ ok: true })
@@ -133,7 +140,7 @@ export async function POST(request: Request) {
 
       if (!alerts || alerts.length === 0) {
         await sendTelegramMessage({
-          chat_id: telegramId,
+          chat_id: replyChatId!,
           text: `📭 You have no active alerts.\n\nSet alerts at <a href="${APP_URL}/alerts">TokenSight Alerts</a>`,
         })
         return NextResponse.json({ ok: true })
@@ -145,7 +152,7 @@ export async function POST(request: Request) {
       }).join("\n\n")
 
       await sendTelegramMessage({
-        chat_id: telegramId,
+        chat_id: replyChatId!,
         text: `🔔 <b>Active Alerts (${alerts.length})</b>\n\n${alertLines}\n\n<a href="${APP_URL}/alerts">Manage Alerts</a>`,
       })
       return NextResponse.json({ ok: true })
@@ -154,7 +161,7 @@ export async function POST(request: Request) {
     // Unknown command
     if (lowerText) {
       await sendTelegramMessage({
-        chat_id: telegramId,
+        chat_id: replyChatId!,
         text: `🤖 Unknown command. Send /help to see available commands.`,
       })
       return NextResponse.json({ ok: true })
