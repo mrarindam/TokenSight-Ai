@@ -2,14 +2,14 @@
 
 import FAQ from "@/components/FAQ"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
 import {
   Activity,
   ArrowRight,
   ShieldAlert,
-  ShieldCheck,
+  TrendingUp,
   Zap,
   Search,
   Shield,
@@ -17,12 +17,13 @@ import {
   ExternalLink,
   RefreshCw,
   AlertCircle,
+  Flame,
 } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
-import type { Token, TokenApiResponse } from "@/types/token"
+import type { Token, TokenApiResponse, TrendingToken, TrendingTokenApiResponse } from "@/types/token"
 
 // ===== Stats Section with CountUp =====
 function CountUpNumber({ value, suffix = "", prefix = "", showK = true }: { value: number | string | null, suffix?: string, prefix?: string, showK?: boolean }) {
@@ -110,11 +111,12 @@ function getStatusStyle(status: string) {
 
 export default function Home() {
   const [tokens, setTokens] = useState<Token[]>([])
-  const [lowRiskTokens, setLowRiskTokens] = useState<Token[]>([])
+  const [trendingTokens, setTrendingTokens] = useState<TrendingToken[]>([])
   const [globalStats, setGlobalStats] = useState<{ total_scans: number, monthly_scans: number, total_users: number } | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [lastUpdated, setLastUpdated] = useState<string>("")
+  const hasFetchedInitially = useRef(false)
 
   const fetchTokens = useCallback(async () => {
     try {
@@ -122,14 +124,14 @@ export default function Home() {
       setError(null)
 
       const ts = Date.now()
-      const [resBags, resLowRisk, resStats] = await Promise.all([
+      const [resBags, resTrending, resStats] = await Promise.all([
         fetch(`/api/tokens?t=${ts}`, { cache: "no-store" }),
-        fetch(`/api/low-risk?t=${ts}`, { cache: "no-store" }),
+        fetch(`/api/trending?t=${ts}`, { cache: "no-store" }),
         fetch(`/api/stats?t=${ts}`, { cache: "no-store" })
       ])
 
       const jsonBags: TokenApiResponse = await resBags.json()
-      const jsonLowRisk: TokenApiResponse = await resLowRisk.json()
+      const jsonTrending: TrendingTokenApiResponse = await resTrending.json()
       const jsonStats = await resStats.json()
 
       if (!jsonBags.success || !Array.isArray(jsonBags.data)) {
@@ -139,8 +141,10 @@ export default function Home() {
       setTokens(jsonBags.data)
       setGlobalStats(jsonStats)
 
-      if (jsonLowRisk.success && Array.isArray(jsonLowRisk.data)) {
-        setLowRiskTokens(jsonLowRisk.data)
+      if (jsonTrending.success && Array.isArray(jsonTrending.data)) {
+        setTrendingTokens(jsonTrending.data)
+      } else {
+        setTrendingTokens([])
       }
 
       setLastUpdated(
@@ -158,6 +162,8 @@ export default function Home() {
   }, [])
 
   useEffect(() => {
+    if (hasFetchedInitially.current) return
+    hasFetchedInitially.current = true
     fetchTokens()
   }, [fetchTokens])
 
@@ -211,7 +217,7 @@ export default function Home() {
               className="text-[17px] md:text-lg text-muted-foreground/80 max-w-2xl mx-auto leading-relaxed animate-fade-up font-medium"
               style={{ animationDelay: "0.2s" }}
             >
-              Analyze both early-stage and established tokens across the entire Bags ecosystem through liquidity, trading activity, holder behavior, volume trends and on-chain signals — giving you the clarity to make confident, data-driven entry decisions.
+              Analyze both early-stage and established tokens across the Solana blockchain through liquidity, trading activity, holder behavior, volume trends and on-chain signals — giving you the clarity to make confident, data-driven entry decisions.
             </p>
 
             {/* CTA Buttons */}
@@ -274,7 +280,7 @@ export default function Home() {
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Live Token Feed</h2>
               <p className="text-sm text-muted-foreground">
-                Real-time data from Bags API
+                Real-time Solana token data
                 {lastUpdated && (
                   <span className="ml-2 text-xs opacity-60">• Updated {lastUpdated}</span>
                 )}
@@ -330,7 +336,7 @@ export default function Home() {
               <div>
                 <h2 className="text-2xl font-bold tracking-tight">Early Stage Tokens</h2>
                 <p className="text-sm text-muted-foreground">
-                  Newly launched tokens — exercise caution for smart entries
+                  Newly launched Solana tokens - exercise caution for smart entries
                 </p>
               </div>
               <span className="ml-auto text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full">
@@ -350,50 +356,207 @@ export default function Home() {
           </section>
         )}
 
-        {/* ===== Section 2: Low Risk Signals ===== */}
+        {/* ===== Section 2: Trending Solana Tokens ===== */}
         {!error && !isLoading && (
           <section className="space-y-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-safe/10">
-                <ShieldCheck className="h-5 w-5 text-safe" />
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-safe/10">
+                  <TrendingUp className="h-5 w-5 text-safe" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold tracking-tight">Top 10 Trending Tokens In 24h solana from all MCAP</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Top 10 live Solana trending tokens across all market caps, ranked with Birdeye data.
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight">Verified High-Confidence Discoveries</h2>
-                <p className="text-sm text-muted-foreground">
-                  A persistent archive of intelligence-led token discoveries verified by market structure and volume.
-                </p>
+              <div className="ml-auto flex items-center gap-3">
+                <span className="text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full">
+                  {trendingTokens.length} Trending
+                </span>
+                <button
+                  onClick={fetchTokens}
+                  disabled={isLoading}
+                  className="flex items-center gap-2 rounded-lg border border-border/40 px-4 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                >
+                  <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+                  Refresh
+                </button>
               </div>
-              <span className="ml-auto text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full">
-                {lowRiskTokens.length} Discovered
-              </span>
             </div>
 
-            {lowRiskTokens.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 stagger-children">
-                {lowRiskTokens.map((token) => (
-                  <TokenCard key={token.id} token={token} />
-                ))}
+            {trendingTokens.length > 0 ? (
+              <div className="overflow-hidden rounded-[1.5rem] border border-border/40 bg-card/35 backdrop-blur-md">
+                <div className="hidden grid-cols-[72px_minmax(0,1.8fr)_minmax(0,1fr)_120px_120px_100px_110px] items-center gap-4 border-b border-border/40 bg-muted/10 px-5 py-4 text-[11px] font-black uppercase tracking-[0.2em] text-muted-foreground lg:grid">
+                  <span>Rank</span>
+                  <span>Token</span>
+                  <span>Price</span>
+                  <span>24H Volume</span>
+                  <span>Liquidity</span>
+                  <span>24H</span>
+                  <span>MC</span>
+                </div>
+
+                <div className="divide-y divide-border/30">
+                  {trendingTokens.map((token) => (
+                    <TrendingTokenRow key={token.address} token={token} />
+                  ))}
+                </div>
               </div>
             ) : (
-              <EmptySection message="No high-confidence discoveries have been archived yet." />
+              <EmptySection message="No trending Solana tokens are available right now." />
             )}
           </section>
         )}
 
-        {/* ===== Intelligence Hub: FAQ Section ===== */}
-        <FAQ />
+              {/* ===== Intelligence Hub: FAQ Section ===== */}
+              <FAQ />
 
-        {/* ===== Powered By: Tech Stack Section ===== */}
-        <TechStack />
-      </div>
-    </div>
-  )
-}
+              {/* ===== Powered By: Tech Stack Section ===== */}
+              <TechStack />
+            </div>
+          </div>
+        )
+      }
+
+      function formatLargeNumber(value: number) {
+        if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`
+        if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`
+        return `$${value.toFixed(0)}`
+      }
+
+      function formatCompactUsd(value: number) {
+        if (value >= 1000000) return `$${(value / 1000000).toFixed(2)}M`
+        if (value >= 1000) return `$${(value / 1000).toFixed(1)}K`
+        if (value >= 1) return `$${value.toFixed(4)}`
+        return `$${value.toLocaleString(undefined, { minimumFractionDigits: 6, maximumFractionDigits: 9 })}`
+      }
+
+      function formatChange(value: number) {
+        return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`
+      }
+
+      function TrendingTokenRow({ token }: { token: TrendingToken }) {
+        const [copied, setCopied] = useState(false)
+        const positive = token.priceChange24h >= 0
+
+        const handleCopy = async () => {
+          await navigator.clipboard.writeText(token.address)
+          setCopied(true)
+          window.setTimeout(() => setCopied(false), 1400)
+        }
+
+        return (
+          <div className="group px-4 py-4 transition-colors hover:bg-accent/20 lg:px-5">
+            <div className="hidden grid-cols-[72px_minmax(0,1.8fr)_minmax(0,1fr)_120px_120px_100px_110px] items-center gap-4 lg:grid">
+              <div className="flex items-center gap-2">
+                <span className="inline-flex min-w-10 items-center justify-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-black text-primary">#{token.rank}</span>
+                {token.rank <= 3 ? <Flame className="h-4 w-4 text-warning" /> : null}
+              </div>
+
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  {token.image ? (
+                    <Image src={token.image} alt={token.name} width={36} height={36} className="h-9 w-9 rounded-lg object-cover ring-1 ring-border/40" unoptimized />
+                  ) : (
+                    <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-xs font-black text-primary ring-1 ring-border/40">
+                      {token.symbol.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-foreground">{token.symbol}</div>
+                    <div className="truncate text-sm text-muted-foreground">{token.name}</div>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground">
+                  <button type="button" onClick={handleCopy} className="truncate font-mono hover:text-primary">
+                    {copied ? "Copied" : `${token.address.slice(0, 6)}...${token.address.slice(-4)}`}
+                  </button>
+                  <Link
+                    href={`/scan?address=${token.address}`}
+                    className="inline-flex items-center gap-2 rounded-full border border-primary/25 bg-primary/10 px-3 py-1.5 text-[10px] font-black uppercase tracking-[0.18em] text-primary transition-all duration-300 hover:border-primary hover:bg-primary hover:text-primary-foreground"
+                  >
+                    <Search className="h-3 w-3" />
+                    Scan Token
+                  </Link>
+                </div>
+              </div>
+
+              <div className="text-sm font-semibold">{formatCompactUsd(token.price)}</div>
+              <div className="text-sm font-semibold">{formatLargeNumber(token.volume24hUSD)}</div>
+              <div className="text-sm font-semibold">{formatLargeNumber(token.liquidity)}</div>
+              <div className={cn("text-sm font-black", positive ? "text-safe" : "text-danger")}>{formatChange(token.priceChange24h)}</div>
+              <div className="text-sm font-semibold text-muted-foreground">{formatLargeNumber(token.marketCap)}</div>
+            </div>
+
+            <div className="space-y-4 rounded-[1.25rem] border border-border/30 bg-background/20 p-4 lg:hidden">
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  {token.image ? (
+                    <Image src={token.image} alt={token.name} width={40} height={40} className="h-10 w-10 rounded-xl object-cover ring-1 ring-border/40" unoptimized />
+                  ) : (
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-sm font-black text-primary ring-1 ring-border/40">
+                      {token.symbol.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex min-w-10 items-center justify-center rounded-full bg-primary/10 px-2.5 py-1 text-xs font-black text-primary">#{token.rank}</span>
+                      <span className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">MC {formatLargeNumber(token.marketCap)}</span>
+                    </div>
+                    <div className="mt-2 truncate text-base font-black">{token.symbol}</div>
+                    <div className="truncate text-sm text-muted-foreground">{token.name}</div>
+                  </div>
+                </div>
+
+                <div className={cn("rounded-xl px-3 py-2 text-sm font-black", positive ? "bg-safe/10 text-safe" : "bg-danger/10 text-danger")}>
+                  {formatChange(token.priceChange24h)}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Price</div>
+                  <div className="mt-1 font-semibold">{formatCompactUsd(token.price)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">24H Volume</div>
+                  <div className="mt-1 font-semibold">{formatLargeNumber(token.volume24hUSD)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">Liquidity</div>
+                  <div className="mt-1 font-semibold">{formatLargeNumber(token.liquidity)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.18em] text-muted-foreground">MC</div>
+                  <div className="mt-1 font-semibold">{formatLargeNumber(token.marketCap)}</div>
+                </div>
+              </div>
+
+              <button type="button" onClick={handleCopy} className="text-left font-mono text-xs text-primary">
+                {copied ? "Copied" : `${token.address.slice(0, 6)}...${token.address.slice(-4)}`}
+              </button>
+
+              <Link
+                href={`/scan?address=${token.address}`}
+                className={cn(buttonVariants({ variant: "ghost" }), "h-11 w-full justify-between rounded-xl border border-primary/20 bg-gradient-to-r from-primary/10 via-primary/5 to-transparent text-[11px] font-black uppercase tracking-[0.2em] hover:border-primary hover:bg-primary hover:text-primary-foreground")}
+              >
+                <span className="flex items-center gap-2">
+                  <Search className="h-4 w-4" />
+                  Scan Token
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </div>
+        )
+      }
 
 // ===== Tech Stack Marquee Component =====
 function TechStack() {
   const logos = [
-    { name: "BAGS", color: "text-primary" },
+    { name: "SOLANA", color: "text-primary" },
     { name: "DEXSCREENER", color: "text-sky-400" },
     { name: "GROQ", color: "text-orange-500" },
     { name: "SUPABASE", color: "text-emerald-500" },

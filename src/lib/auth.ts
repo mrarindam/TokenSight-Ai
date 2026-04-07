@@ -12,6 +12,7 @@ declare module "next-auth" {
       name?: string | null
       email?: string | null
       image?: string | null
+      wallet?: string | null
     }
   }
 }
@@ -143,6 +144,17 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string;
+        // Fetch wallet from DB for every session refresh
+        try {
+          const { data } = await supabase
+            .from("users")
+            .select("wallet")
+            .eq("id", token.id)
+            .single();
+          session.user.wallet = data?.wallet || null;
+        } catch {
+          session.user.wallet = null;
+        }
       }
       return session;
     }

@@ -83,7 +83,45 @@ export default function RecentActivity({ userId }: RecentActivityProps) {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            <div className="space-y-3 p-4 md:hidden">
+              {scans.map((scan) => {
+                const isStrong = scan.score >= 80
+                const isGood = scan.score >= 50
+
+                return (
+                  <article key={scan.id} className="rounded-[1.5rem] border border-border/30 bg-background/35 p-4 space-y-3">
+                    <div className="font-extrabold text-sm tracking-tight break-words">{scan.token_name}</div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Risk</div>
+                        <div className="mt-1">
+                          <span className={cn(
+                            "text-[9px] font-black px-2.5 py-1 rounded-full border shadow-sm whitespace-nowrap inline-flex items-center justify-center",
+                            isStrong ? "bg-safe/20 text-safe border-safe/30" : 
+                            isGood ? "bg-primary/20 text-primary border-primary/30" : 
+                            "bg-danger/20 text-danger border-danger/30"
+                          )}>
+                            {isStrong ? 'STRONG ENTRY' : isGood ? 'GOOD ENTRY' : 'WEAK ENTRY'}
+                          </span>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Score</div>
+                        <div className="mt-1 font-black">{scan.score}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Date</div>
+                      <div className="mt-1 text-sm text-muted-foreground">
+                        <LocalTime timestamp={scan.created_at} mode="tooltip" />
+                      </div>
+                    </div>
+                  </article>
+                )
+              })}
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border/20 bg-muted/20">

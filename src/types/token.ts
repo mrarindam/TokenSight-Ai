@@ -39,11 +39,35 @@ export interface Token {
   lastScannedAt?: string
 }
 
+export interface TrendingToken {
+  rank: number
+  name: string
+  symbol: string
+  address: string
+  price: number
+  volume24hUSD: number
+  liquidity: number
+  marketCap: number
+  priceChange24h: number
+  txns?: number | null
+  createdAt: string
+  age: string
+  score: number
+  image?: string | null
+}
+
 // ===== API Route Response =====
 
 export interface TokenApiResponse {
   success: boolean
   data: Token[]
+  error?: string
+  timestamp: string
+}
+
+export interface TrendingTokenApiResponse {
+  success: boolean
+  data: TrendingToken[]
   error?: string
   timestamp: string
 }

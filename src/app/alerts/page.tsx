@@ -151,8 +151,8 @@ export default function AlertsPage() {
   }
 
   return (
-    <div className="container max-w-5xl py-12 space-y-10">
-      <section className="glass rounded-[2rem] border border-border/40 p-8">
+    <div className="container max-w-6xl px-4 py-8 md:px-6 md:py-12 space-y-8 md:space-y-10">
+      <section className="glass rounded-[2rem] border border-border/40 p-5 md:p-8">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">Alerts Center</h1>
@@ -253,11 +253,59 @@ export default function AlertsPage() {
         </form>
       </section>
 
-      <section className="glass rounded-[2rem] border border-border/40 p-8">
+      <section className="glass rounded-[2rem] border border-border/40 p-5 md:p-8">
         <h2 className="text-xl font-bold tracking-tight">Active Alerts</h2>
         <p className="mt-2 text-sm text-muted-foreground">Manage your active token alerts, review thresholds, and see when alerts last fired. Triggered alerts auto-disable after sending to avoid repeat spam.</p>
 
-        <div className="mt-6 overflow-x-auto">
+        <div className="mt-6 space-y-4 md:hidden">
+          {alerts.length === 0 ? (
+            <div className="rounded-[1.5rem] border border-border/30 bg-background/40 px-4 py-8 text-center text-sm text-muted-foreground">
+              No alerts created yet. Add one to start monitoring token moves.
+            </div>
+          ) : (
+            alerts.map((alert) => (
+              <article key={alert.id} className="rounded-[1.5rem] border border-border/30 bg-background/35 p-4 space-y-4">
+                <div className="min-w-0">
+                  <div className="font-semibold break-words">{alert.token_name || alert.token_address}</div>
+                  {alert.token_name ? <div className="text-[11px] text-muted-foreground break-all">{alert.token_address}</div> : null}
+                </div>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Type</div>
+                    <div className="mt-1 font-semibold">{alert.alert_type.replace("_", " ")}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Threshold</div>
+                    <div className="mt-1 font-semibold break-all">${formatUsdValue(alert.threshold)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Triggered</div>
+                    <div className="mt-1 font-semibold">{alert.trigger_count || 0}x</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Status</div>
+                    <div className="mt-1">
+                      <span className="rounded-full bg-muted/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{alert.is_active ? "ACTIVE" : "INACTIVE"}</span>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Last Triggered</div>
+                  <div className="mt-1 text-sm text-foreground">{formatDateTime(alert.last_triggered_at)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDelete(alert.id)}
+                  className="w-full rounded-full border border-red-500/20 bg-red-500/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-500 transition hover:bg-red-500/15"
+                >
+                  Delete
+                </button>
+              </article>
+            ))
+          )}
+        </div>
+
+        <div className="mt-6 hidden overflow-x-auto md:block">
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border/30 text-muted-foreground uppercase tracking-[0.2em] text-[10px]">

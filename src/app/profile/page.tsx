@@ -8,6 +8,7 @@ import { Crown, Target, Zap, LogOut, Search, Clock, Award, BarChart3, TrendingUp
 import RecentActivity from "@/components/RecentActivity"
 import LocalTime from "@/components/LocalTime"
 import EditProfile from "@/components/EditProfile"
+import { WalletSettings } from "@/components/WalletSettings"
 
 import { getLeague } from "@/lib/leagues"
 import { cn } from "@/lib/utils"
@@ -111,6 +112,8 @@ export default async function ProfilePage() {
     : userIdentity
 
   const avatarUrl = dbUser?.avatar_url || null
+  const userWallet = dbUser?.wallet || null
+  const isWalletLogin = !dbUser?.email && !!dbUser?.wallet
 
   // High Precision Last Activity - Strictly scan-based (No fallback to account creation)
   const activityTimestamp = lastScan?.[0]?.created_at || null
@@ -278,6 +281,11 @@ export default async function ProfilePage() {
           </div>
           <Award className="w-8 h-8 text-white/5 -rotate-12 group-hover:text-white/10 transition-colors" />
         </div>
+      </div>
+
+      {/* WALLET SETTINGS */}
+      <div className="animate-fade-up [animation-delay:350ms]">
+        <WalletSettings currentWallet={userWallet} isWalletLogin={isWalletLogin} />
       </div>
 
       {/* DISCONNECT OPTION */}

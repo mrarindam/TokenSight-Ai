@@ -40,11 +40,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid token address format" }, { status: 400 })
     }
 
-    if (!address.endsWith("BAGS")) {
-      return NextResponse.json({ error: "Only Bags tokens are supported" }, { status: 400 })
-    }
-
-    if (!BAGS_API_KEY || !GROQ_API_KEY) {
+    if (!GROQ_API_KEY) {
       return NextResponse.json({ error: "Server configuration error: missing API keys" }, { status: 500 })
     }
 
@@ -217,6 +213,7 @@ export async function POST(request: Request) {
     let dexVolume: number | null = null
     let dexTokenName: string | null = null
     let dexTokenSymbol: string | null = null
+    let dexPrice: number | null = null
 
     if (rawDex?.pairs && Array.isArray(rawDex.pairs) && rawDex.pairs.length > 0) {
       // Prioritize Solana chain
@@ -233,9 +230,10 @@ export async function POST(request: Request) {
       dexVolume = highestPair.volume?.h24 || null
       dexTokenName = highestPair.baseToken?.name || null
       dexTokenSymbol = highestPair.baseToken?.symbol || null
+      dexPrice = highestPair.priceUsd ? parseFloat(highestPair.priceUsd) : null
       
       if (process.env.NODE_ENV === "development") {
-        console.log(`[SCAN_ENGINE] Dex Best Pair: ${highestPair.pairAddress} | Chain: ${highestPair.chainId} | Liq: ${dexLiquidity} | Vol: ${dexVolume}`)
+        console.log(`[SCAN_ENGINE] Dex Best Pair: ${highestPair.pairAddress} | Chain: ${highestPair.chainId} | Liq: ${dexLiquidity} | Vol: ${dexVolume} | Price: ${dexPrice}`)
       }
     }
 
@@ -253,6 +251,41 @@ export async function POST(request: Request) {
         address,
         helius_holders: holdersCount !== null ? holdersCount : "Data unavailable"
       })
+    }
+
+    // --- WHALE/TOP HOLDER DETECTION via Helius ---
+    let topHolderPct: number | null = null
+    let whaleWarning = false
+    if (holdersCount && holdersCount > 0 && HELIUS_API_KEY) {
+      try {
+        const topRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${HELIUS_API_KEY}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0", id: "whale",
+            method: "getTokenAccounts",
+            params: { mint: address, page: 1, limit: 1000 }
+          })
+        })
+        if (topRes.ok) {
+          const topData = await topRes.json()
+          const accounts: { amount?: number }[] = topData.result?.token_accounts || []
+          if (accounts.length > 0) {
+            // Sort by amount descending, take top 10
+            const sorted = accounts
+              .map(a => a.amount || 0)
+              .sort((a, b) => b - a)
+            const totalSupply = sorted.reduce((sum, a) => sum + a, 0)
+            if (totalSupply > 0) {
+              const top10Sum = sorted.slice(0, 10).reduce((sum, a) => sum + a, 0)
+              topHolderPct = Math.round((top10Sum / totalSupply) * 10000) / 100 // 2 decimal %
+              whaleWarning = topHolderPct > 50
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[SCAN_ENGINE] Whale detection error:", e)
+      }
     }
 
     // --- STEP 3: PREPARE VARIABLES WITH FAILSAFES ---
@@ -378,17 +411,32 @@ export async function POST(request: Request) {
       signals.push("Early discovery uncertainty premium")
     }
 
-    // G. DATA CONFIDENCE LAYER
+    // G. WHALE SCORING
+    if (topHolderPct !== null) {
+      validSignalsCount++
+      if (topHolderPct > 80) {
+        score -= 20
+        signals.push(`Top 10 wallets hold ${topHolderPct}% — extreme concentration`)
+      } else if (topHolderPct > 50) {
+        score -= 10
+        signals.push(`Top 10 wallets hold ${topHolderPct}% — high concentration`)
+      } else if (topHolderPct <= 30) {
+        score += 5
+        signals.push(`Top 10 wallets hold ${topHolderPct}% — healthy distribution`)
+      }
+    }
+
+    // H. DATA CONFIDENCE LAYER
     let confidence = "LOW"
     if (validSignalsCount >= 3) confidence = "HIGH"
     else if (validSignalsCount >= 2) confidence = "MEDIUM"
 
-    // H. FINAL SCORE CLAMPING & ROUNDING
+    // I. FINAL SCORE CLAMPING & ROUNDING
     score = Math.round(score)
     if (score > 100) score = 100
     if (score < 0) score = 0
 
-    // I. SIGNAL INTERPRETATION
+    // J. SIGNAL INTERPRETATION
     let label = "WATCH SIGNAL"
     if (score >= 80) label = "STRONG OPPORTUNITY"
     else if (score >= 60) label = "GOOD ENTRY"
@@ -501,7 +549,7 @@ Rules:
     })
 
     // --- CLEAN TOKEN-ONLY RESPONSE ---
-    return NextResponse.json({
+    const scanResponse = {
       score: score,
       label: label,
       confidence: confidence,
@@ -509,13 +557,47 @@ Rules:
       explanation: explanation,
       contractName: bagsToken?.name || dexTokenName || bagsToken?.symbol || "Unknown Token",
       meta: {
-        liquidity: liquidity, // Pass null as null
-        volume: volume,       // Pass null as null
-        holders: holders,     // Pass null as null
+        liquidity: liquidity,
+        volume: volume,
+        holders: holders,
         creator_tokens: creator_tokens,
         status: status,
+        price: dexPrice,
+        topHolderPct: topHolderPct,
+        whaleWarning: whaleWarning,
       }
-    })
+    }
+
+    // --- TELEGRAM NOTIFICATION (fire & forget) ---
+    if (session?.user?.id) {
+      supabase.from("users").select("telegram_id").eq("id", session.user.id).single()
+        .then(({ data }) => {
+          if (data?.telegram_id) {
+            import("@/lib/telegram").then(({ sendTelegramMessage, formatScanMessage }) => {
+              sendTelegramMessage({
+                chat_id: data.telegram_id,
+                text: formatScanMessage({
+                  tokenName: scanResponse.contractName,
+                  tokenSymbol: tokenSymbol,
+                  address,
+                  score,
+                  label,
+                  confidence,
+                  signals,
+                  liquidity,
+                  volume,
+                  holders,
+                  price: dexPrice,
+                  topHolderPct,
+                  whaleWarning,
+                }),
+              })
+            })
+          }
+        })
+    }
+
+    return NextResponse.json(scanResponse)
 
   } catch (error) {
     console.error("[api/scan] Unexpected error:", error)

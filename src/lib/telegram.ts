@@ -92,3 +92,56 @@ export function extractUserIdFromUpdate(update: Record<string, unknown>): string
   const from = message?.from as Record<string, unknown> | undefined
   return from?.id?.toString() || null
 }
+
+/**
+ * Format a scan result for Telegram notification
+ */
+export function formatScanMessage(data: {
+  tokenName: string
+  tokenSymbol: string
+  address: string
+  score: number
+  label: string
+  confidence: string
+  signals: string[]
+  liquidity: number | null
+  volume: number | null
+  holders: number | null
+  price: number | null
+  topHolderPct: number | null
+  whaleWarning: boolean
+}): string {
+  const scoreEmoji = data.score >= 80 ? "🟢" : data.score >= 60 ? "🟡" : data.score >= 35 ? "🟠" : "🔴"
+  const whaleIcon = data.whaleWarning ? "🐋 " : ""
+
+  const priceStr = data.price !== null
+    ? `$${data.price < 0.01 ? data.price.toExponential(2) : formatUsdValue(data.price)}`
+    : "N/A"
+  const liqStr = data.liquidity !== null ? `$${data.liquidity.toLocaleString()}` : "N/A"
+  const volStr = data.volume !== null ? `$${data.volume.toLocaleString()}` : "N/A"
+  const holdersStr = data.holders !== null ? data.holders.toLocaleString() : "N/A"
+  const whaleStr = data.topHolderPct !== null ? `${data.topHolderPct}%` : "N/A"
+
+  const topSignals = data.signals.slice(0, 4).map(s => `  • ${s}`).join("\n")
+
+  return `
+${scoreEmoji} <b>TokenSight Scan Result</b>
+
+<b>${data.tokenName}</b> (${data.tokenSymbol})
+<code>${data.address}</code>
+
+📊 <b>Score:</b> ${data.score}/100 — ${data.label}
+🎯 <b>Confidence:</b> ${data.confidence}
+
+💰 <b>Price:</b> ${priceStr}
+💧 <b>Liquidity:</b> ${liqStr}
+📈 <b>Volume 24h:</b> ${volStr}
+👥 <b>Holders:</b> ${holdersStr}
+${whaleIcon}<b>Top 10 Holders:</b> ${whaleStr}
+
+<b>Signals:</b>
+${topSignals}
+
+🔗 <a href="https://dexscreener.com/solana/${data.address}">Chart</a> · <a href="https://tokensightai.tech/scan?address=${data.address}">Full Analysis</a>
+  `.trim()
+}

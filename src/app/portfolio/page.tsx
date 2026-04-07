@@ -171,7 +171,7 @@ export default function PortfolioPage() {
   }
 
   return (
-    <div className="container max-w-6xl py-12 space-y-10">
+    <div className="container max-w-7xl px-4 py-8 md:px-6 md:py-12 space-y-8 md:space-y-10">
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <div className="glass rounded-[1.5rem] border border-border/40 p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-muted-foreground">Holdings</p>
@@ -199,8 +199,8 @@ export default function PortfolioPage() {
         </div>
       </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        <section className="glass rounded-[2rem] border border-border/40 p-8">
+      <div className="grid gap-6 xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:items-start">
+        <section className="glass rounded-[2rem] border border-border/40 p-5 md:p-8 xl:sticky xl:top-28">
           <h1 className="text-2xl font-bold tracking-tight">Portfolio Tracker</h1>
           <p className="mt-2 text-sm text-muted-foreground">
             {editingId ? "Update the selected holding and save the changes." : "Add tokens to your watchlist and keep track of holdings from one place."}
@@ -288,31 +288,33 @@ export default function PortfolioPage() {
 
             {error && <div className="rounded-3xl border border-red-400/25 bg-red-500/10 px-4 py-3 text-sm text-red-500">{error}</div>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              className={cn(
-                "inline-flex items-center justify-center rounded-3xl px-6 py-3 text-sm font-bold transition",
-                loading ? "bg-primary/50 text-background cursor-not-allowed" : "bg-primary text-background hover:bg-primary/90"
-              )}
-            >
-              {loading ? "Saving..." : editingId ? "Update Holding" : "Add to Portfolio"}
-            </button>
-
-            {editingId ? (
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button
-                type="button"
-                onClick={handleCancelEdit}
-                className="ml-3 inline-flex items-center justify-center rounded-3xl border border-border/50 px-6 py-3 text-sm font-bold text-foreground transition hover:bg-primary/5"
+                type="submit"
+                disabled={loading}
+                className={cn(
+                  "inline-flex items-center justify-center rounded-3xl px-6 py-3 text-sm font-bold transition sm:min-w-[170px]",
+                  loading ? "bg-primary/50 text-background cursor-not-allowed" : "bg-primary text-background hover:bg-primary/90"
+                )}
               >
-                Cancel
+                {loading ? "Saving..." : editingId ? "Update Holding" : "Add to Portfolio"}
               </button>
-            ) : null}
+
+              {editingId ? (
+                <button
+                  type="button"
+                  onClick={handleCancelEdit}
+                  className="inline-flex items-center justify-center rounded-3xl border border-border/50 px-6 py-3 text-sm font-bold text-foreground transition hover:bg-primary/5 sm:min-w-[140px]"
+                >
+                  Cancel
+                </button>
+              ) : null}
+            </div>
           </form>
         </section>
 
-        <section className="glass rounded-[2rem] border border-border/40 p-8">
-          <div className="flex items-center justify-between gap-4">
+        <section className="glass rounded-[2rem] border border-border/40 p-5 md:p-8 min-w-0">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-xl font-bold tracking-tight">Your Holdings</h2>
               <p className="text-sm text-muted-foreground">Live portfolio entries and positions you are tracking.</p>
@@ -325,7 +327,92 @@ export default function PortfolioPage() {
             </button>
           </div>
 
-          <div className="mt-6 overflow-x-auto">
+          <div className="mt-6 space-y-4 md:hidden">
+            {portfolio.length === 0 ? (
+              <div className="rounded-[1.5rem] border border-border/30 bg-background/40 px-4 py-8 text-center text-sm text-muted-foreground">
+                No holdings yet. Add a token to begin monitoring your portfolio.
+              </div>
+            ) : (
+              portfolio.map((item) => {
+                const currentPrice = livePrices[item.token_address] ?? null
+                const roi = currentPrice !== null ? ((currentPrice - item.entry_price) / item.entry_price) * 100 : null
+                return (
+                  <article key={item.id} className="rounded-[1.5rem] border border-border/30 bg-background/35 p-4 space-y-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-semibold break-words">{item.token_name}</div>
+                        <div className="text-[11px] text-muted-foreground break-all">{item.token_symbol || item.token_address}</div>
+                      </div>
+                      <span className="rounded-full bg-muted/20 px-3 py-1 text-[11px] font-bold uppercase tracking-[0.18em] text-muted-foreground">{item.status}</span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Quantity</div>
+                        <div className="mt-1 font-semibold break-all">{item.quantity}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Risk</div>
+                        <div className="mt-1 font-semibold">{item.risk_level}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Entry</div>
+                        <div className="mt-1 font-semibold break-all">${Number(item.entry_price).toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 9 })}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Current</div>
+                        <div className="mt-1 font-semibold break-all">{currentPrice === null ? "—" : `$${currentPrice.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 9 })}`}</div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">ROI</div>
+                      <div className={cn("mt-1 font-semibold", roi === null ? "text-muted-foreground" : roi >= 0 ? "text-green-600" : "text-red-500")}>
+                        {roi === null ? "—" : `${roi > 0 ? "+" : ""}${roi.toFixed(2)}%`}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3">
+                      <button
+                        className="flex-1 rounded-full bg-primary/10 px-3 py-2 text-xs font-bold text-primary transition hover:bg-primary/20"
+                        title="Edit holding"
+                        onClick={() => handleEdit(item)}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        className="flex-1 rounded-full bg-red-500/10 px-3 py-2 text-xs font-bold text-red-600 transition hover:bg-red-500/20"
+                        title="Delete entry"
+                        onClick={async () => {
+                          if (!window.confirm('Delete this portfolio entry?')) return
+                          setLoading(true)
+                          setError(null)
+                          try {
+                            const response = await fetch(DEFAULT_API, {
+                              method: 'DELETE',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ id: item.id })
+                            })
+                            const data = await response.json()
+                            if (!response.ok) throw new Error(data?.error || 'Failed to delete entry')
+                            fetchPortfolio()
+                          } catch (err) {
+                            setError((err as Error).message)
+                          } finally {
+                            setLoading(false)
+                          }
+                        }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </div>
+
+          <div className="mt-6 hidden overflow-x-auto md:block">
             <table className="min-w-full text-left text-sm">
               <thead>
                 <tr className="border-b border-border/30 text-muted-foreground uppercase tracking-[0.2em] text-[10px]">
