@@ -4,7 +4,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { Menu, X, Scan, Trophy, User, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, Sparkles } from "lucide-react"
+import { Menu, X, Scan, Trophy, User, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, Sparkles, BookOpen } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,7 @@ const PRIMARY_NAV_ITEMS = [
 const SECONDARY_NAV_ITEMS = [
   { href: "/scan/history", label: "History", icon: History },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
+  { href: "/docs", label: "Docs", icon: BookOpen },
   { href: "/settings/telegram", label: "Telegram", icon: Settings },
   { href: "/profile", label: "Profile", icon: User },
 ]

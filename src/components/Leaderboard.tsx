@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
 import Image from 'next/image'
-import { supabase } from '@/lib/supabaseClient'
 import { 
   Trophy, 
   Medal, 
@@ -23,19 +22,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-
-// Types based on requirements
-interface LeaderboardEntry {
-  user_id: string
-  total_scans: number
-  detection_rate: number
-  streak: number
-  users: {
-    display_name: string | null
-    avatar_url: string | null
-    wallet: string | null
-  }
-}
+import type { LeaderboardEntry } from '@/lib/scan-analytics'
 
 // Badge Logic (Synced with LEAGUES.ts)
 const getBadge = (scans: number) => {
@@ -66,59 +53,14 @@ export default function Leaderboard() {
 
   const fetchLeaderboard = useCallback(async () => {
     try {
-      // 1. Fetch Top 50 from user_stats (for streaks/accuracy)
-      const { data: baseStats, error: baseError } = await supabase
-        .from('user_stats')
-        .select(`
-          user_id,
-          detection_rate,
-          streak,
-          users (
-            display_name,
-            avatar_url,
-            wallet
-          )
-        `)
-        .order('streak', { ascending: false }) // Initial sort by streak or rank
-        .limit(50)
+      const response = await fetch('/api/leaderboard', { cache: 'no-store' })
+      const data = await response.json()
 
-      if (baseError) throw baseError
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to load leaderboard')
+      }
 
-      // 2. Fetch REAL counts from scans table for these users
-      // Use Promise.all to fetch exact count for each user concurrently
-      const userIds = baseStats.map(s => s.user_id)
-      const countPromises = userIds.map(uid => 
-        supabase
-          .from('scans')
-          .select('*', { count: 'exact', head: true })
-          .eq('user_id', uid)
-      )
-
-      const countResults = await Promise.all(countPromises)
-      
-      const countsMap: Record<string, number> = {}
-      userIds.forEach((uid, index) => {
-        countsMap[uid] = countResults[index].count || 0
-      })
-
-      // 3. Enrich and Final Sort by actual scans
-      const enriched: LeaderboardEntry[] = (baseStats as unknown as Array<{ 
-        user_id: string, 
-        detection_rate: number, 
-        streak: number, 
-        users: { display_name: string | null, avatar_url: string | null, wallet: string | null } | Array<{ display_name: string | null, avatar_url: string | null, wallet: string | null }> 
-      }>).map((s) => ({
-        user_id: s.user_id,
-        detection_rate: s.detection_rate,
-        streak: s.streak,
-        users: Array.isArray(s.users) ? s.users[0] : s.users,
-        total_scans: countsMap[s.user_id] || 0
-      }))
-
-      // Final sort by true scans
-      enriched.sort((a, b) => b.total_scans - a.total_scans)
-
-      setLeaderboard(enriched)
+      setLeaderboard(data.leaderboard || [])
     } catch (err) {
       console.error('[LEADERBOARD] Fetch Error:', err)
     } finally {
@@ -129,8 +71,7 @@ export default function Leaderboard() {
   useEffect(() => {
     fetchLeaderboard()
     
-    // Auto-refresh every 5 seconds
-    const interval = setInterval(fetchLeaderboard, 5000)
+    const interval = setInterval(fetchLeaderboard, 15000)
     return () => clearInterval(interval)
   }, [fetchLeaderboard])
 
@@ -272,7 +213,7 @@ export default function Leaderboard() {
             </TableHeader>
             <TableBody className="divide-y divide-border/10">
               {remaining.map((row, index) => {
-                const rank = index + 4
+                const rank = row.rank || index + 4
                 const badge = getBadge(row.total_scans)
                 const isYou = row.user_id === currentUserId
 

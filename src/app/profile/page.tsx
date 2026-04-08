@@ -2,15 +2,17 @@ import { getServerSession } from "next-auth/next"
 export const dynamic = 'force-dynamic'
 import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import Link from "next/link"
 import Image from "next/image"
-import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { Crown, Target, Zap, LogOut, Search, Clock, Award, BarChart3, TrendingUp, Calendar, User } from "lucide-react"
-import RecentActivity from "@/components/RecentActivity"
 import LocalTime from "@/components/LocalTime"
 import EditProfile from "@/components/EditProfile"
 import { WalletSettings } from "@/components/WalletSettings"
 
 import { getLeague } from "@/lib/leagues"
+import { getLeaderboardEntries } from "@/lib/scan-analytics"
+import { getUserActiveStreak } from "@/lib/streak-logic"
 import { cn } from "@/lib/utils"
 
 export default async function ProfilePage() {
@@ -21,29 +23,25 @@ export default async function ProfilePage() {
   }
 
   // 1. Fetch User Profile Data
-  const { data: dbUser } = await supabase
+  const { data: dbUser } = await supabaseAdmin
     .from("users")
     .select("*")
     .eq("id", session.user.id)
     .maybeSingle()
 
   // 2. Fetch User Stats
-  const { data: stats } = await supabase
+  const { data: stats } = await supabaseAdmin
     .from("user_stats")
     .select("*")
     .eq("user_id", session.user.id)
     .single()
 
-  // 3. FETCH DYNAMIC GLOBAL RANKING (FROM RPC)
-  const { data: rankData } = await supabase
-    .rpc('get_user_rank', { target_user_id: session.user.id })
-    .single() as { data: { dynamic_rank: number } | null }
-
-
-  const currentRank = rankData?.dynamic_rank || "..."
+  const leaderboardEntries = await getLeaderboardEntries()
+  const currentRank = leaderboardEntries.find((entry) => entry.user_id === session.user.id)?.rank || "..."
+  const activeStreak = await getUserActiveStreak(session.user.id)
 
   // 4. FETCH LAST SCAN
-  const { data: lastScanData } = await supabase
+  const { data: lastScanData } = await supabaseAdmin
     .from("scans")
     .select("created_at")
     .eq("user_id", session.user.id)
@@ -53,7 +51,7 @@ export default async function ProfilePage() {
   const lastScan = lastScanData || []
 
   // 5. FETCH TOTAL SCANS (Lifetime) - Single source of truth from scans table
-  const { count: totalScansCount } = await supabase
+  const { count: totalScansCount } = await supabaseAdmin
     .from("scans")
     .select("*", { count: "exact", head: true })
     .eq("user_id", session.user.id)
@@ -61,7 +59,7 @@ export default async function ProfilePage() {
   const totalScans = totalScansCount || 0
 
   // 6. FETCH HIGH CONVICTION HITS (Score > 70)
-  const { count: highConvictionCount } = await supabase
+  const { count: highConvictionCount } = await supabaseAdmin
     .from("scans")
     .select("*", { count: "exact", head: true })
     .eq("user_id", session.user.id)
@@ -70,7 +68,7 @@ export default async function ProfilePage() {
   const highConvictionHits = highConvictionCount || 0
 
   // 7. FETCH BEST SCAN (Highest Score)
-  const { data: bestScanData } = await supabase
+  const { data: bestScanData } = await supabaseAdmin
     .from("scans")
     .select("token_name, score")
     .eq("user_id", session.user.id)
@@ -82,7 +80,7 @@ export default async function ProfilePage() {
 
   // 8. FETCH WEEKLY SCANS (Last 7 Days)
   const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { count: weeklyCount } = await supabase
+  const { count: weeklyCount } = await supabaseAdmin
     .from("scans")
     .select("*", { count: "exact", head: true })
     .eq("user_id", session.user.id)
@@ -92,12 +90,11 @@ export default async function ProfilePage() {
   const dailyAverage = (weeklyScans / 7).toFixed(1)
 
   const renderStats = stats
-    ? { ...stats, total_scans: totalScans }
+    ? { ...stats, total_scans: totalScans, streak: activeStreak }
     : {
       total_scans: totalScans,
       detection_rate: 0,
-      streak: 0,
-      created_at: new Date().toISOString()
+      streak: activeStreak,
     }
 
   // 7. ASSIGN LEAGUE DYNAMICALLY
@@ -117,7 +114,7 @@ export default async function ProfilePage() {
 
   // High Precision Last Activity - Strictly scan-based (No fallback to account creation)
   const activityTimestamp = lastScan?.[0]?.created_at || null
-  const joinedDate = stats?.created_at || new Date().toISOString()
+  const joinedDate = dbUser?.created_at || new Date().toISOString()
 
   return (
     <div className="flex-1 container max-w-5xl py-12 md:py-16 space-y-10">
@@ -297,9 +294,17 @@ export default async function ProfilePage() {
         </form>
       </div>
 
-      {/* RECENT SCANS SECTION */}
       <div className="animate-fade-up [animation-delay:400ms]">
-        <RecentActivity userId={session.user.id} />
+        <div className="glass rounded-[2rem] border border-border/40 px-6 py-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Scan History</div>
+            <div className="mt-1 text-lg font-black tracking-tight">View your full paginated scan history</div>
+            <div className="text-sm text-muted-foreground mt-1">Your latest scans are now tracked in the dedicated history page with 10 scans per page.</div>
+          </div>
+          <Link href="/scan/history" className="inline-flex items-center justify-center rounded-full border border-primary/30 bg-primary/10 px-5 py-2.5 text-sm font-black text-primary hover:bg-primary/15 transition-colors">
+            Open Scan History
+          </Link>
+        </div>
       </div>
     </div>
   )

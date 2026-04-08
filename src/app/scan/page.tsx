@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useSession } from "next-auth/react"
+import Image from "next/image"
 import { getAnonScanCount, incrementAnonScanCount, isAnonLimitReached, getRemainingScans, SCAN_CONFIG } from "@/lib/anon-scans"
 import { cn } from "@/lib/utils"
 
@@ -22,11 +23,21 @@ import {
   Zap,
   DollarSign,
   Skull,
+  Globe,
+  Send,
+  Copy,
+  ExternalLink,
+  Fingerprint,
+  CheckCircle2,
+  XCircle,
+  Info,
+  TrendingUp,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// Card components available if needed
+// import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScanQuickActions } from "@/components/ScanQuickActions"
 import { TokenChart } from "@/components/TokenChart"
 import { SwapWidget } from "@/components/SwapWidget"
@@ -53,8 +64,32 @@ interface ScanResult {
     holderBreakdown?: Array<{
       rank: number;
       pct: number;
+      address: string;
     }>;
     ageHours?: number | null;
+    isPartialHolderData?: boolean;
+    security?: {
+      mintAuthorityDisabled: boolean;
+      freezeAuthorityDisabled: boolean;
+      lpBurnProfile: string;
+    };
+    identity?: {
+      tokenMint: string;
+      poolAddress: string | null;
+      deployer: string | null;
+      owner: string | null;
+      createdAt: string | null;
+    };
+    social?: {
+      website: string | null;
+      twitter: string | null;
+      telegram: string | null;
+      quoteToken: string | null;
+      status: string | null;
+    };
+    tokenSymbol?: string;
+    marketCap?: number | null;
+    tokenImage?: string | null;
     scoring?: {
       quality: number;
       momentum: number;
@@ -121,6 +156,14 @@ const renderHighlightedSummary = (text: string) => {
   })
 }
 
+const formatCompact = (value: number | null | undefined, prefix = "") => {
+  if (value === null || value === undefined || value <= 0) return "N/A"
+  if (value >= 1_000_000_000) return `${prefix}${(value / 1_000_000_000).toFixed(2)}B`
+  if (value >= 1_000_000) return `${prefix}${(value / 1_000_000).toFixed(2)}M`
+  if (value >= 1_000) return `${prefix}${(value / 1_000).toFixed(2)}K`
+  return `${prefix}${value.toLocaleString()}`
+}
+
 const formatReadablePrice = (value: number | null | undefined) => {
   if (value === null || value === undefined || value <= 0) return "N/A"
   if (value >= 1) {
@@ -135,9 +178,13 @@ const formatReadablePrice = (value: number | null | undefined) => {
   return `$${fixed}`
 }
 
-const formatHolderBreakdownLine = (rank: number, pct: number) => {
-  const walletLabel = rank === 1 ? "Wallet 1" : `Wallet ${rank}`
-  return `${walletLabel}: ${pct}%`
+const truncateAddress = (addr: string, front = 4, back = 4) => {
+  if (!addr || addr.length <= front + back + 3) return addr
+  return `${addr.slice(0, front)}...${addr.slice(-back)}`
+}
+
+const copyToClipboard = (text: string) => {
+  navigator.clipboard.writeText(text).catch(() => {})
 }
 
 function ScanPageContent() {
@@ -454,289 +501,510 @@ function ScanPageContent() {
         </div>
 
         {result && signalStyle && !isScanning && !errorMsg && (
-          <div className="space-y-6 animate-fade-up">
-            {/* ===== TWO-COLUMN DASHBOARD LAYOUT ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+          <div className="space-y-5 animate-fade-up">
 
-              {/* ===== LEFT COLUMN: Scan Analysis ===== */}
-              <div className="lg:col-span-5 space-y-5">
-                {/* Score + Signals Card */}
-                <Card className={cn("glass border-border/40 overflow-hidden relative transition-all duration-1000", signalStyle.glowClass)}>
-                  <div className={cn("h-1 w-full transition-colors duration-1000 relative z-20", signalStyle.bgColor)} />
-                  <CardContent className="p-5 md:p-6">
-                    <div className="flex flex-col items-center gap-6 w-full">
-                      {/* Score Circle */}
-                      <div className="flex flex-col items-center space-y-4">
-                        <div className="relative group">
-                          <div className={cn("absolute inset-0 rounded-full blur-2xl opacity-20 transition-all duration-1000 group-hover:opacity-40 animate-pulse-glow", signalStyle.bgColor)} />
-                          <div className="w-32 h-32 rounded-full border-4 border-white/5 flex items-center justify-center relative backdrop-blur-md shadow-2xl transition-transform duration-500 group-hover:scale-105">
-                            <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 128 128">
-                              <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="4" className="text-white/5" />
-                              <circle
-                                cx="64" cy="64" r="58"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="6"
-                                strokeDasharray="364"
-                                strokeDashoffset={364 - (animatedScore / 100) * 364}
-                                strokeLinecap="round"
-                                className={cn(signalStyle.color, "transition-all duration-300 ease-out drop-shadow-[0_0_12px_currentColor]")}
-                              />
-                            </svg>
-                            <div className="text-center relative z-10">
-                              <div className={cn("text-4xl font-black tracking-tighter transition-colors duration-1000", signalStyle.color)}>
-                                {animatedScore}
-                              </div>
-                              <div className="text-[8px] text-muted-foreground/80 font-black uppercase tracking-[0.2em] whitespace-nowrap mt-0.5">Intelligence</div>
-                            </div>
-                          </div>
-                        </div>
+            {/* ===== SCORE HERO ===== */}
+            <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 overflow-hidden shadow-[0_0_20px_-3px] shadow-primary/15 hover:shadow-primary/25 transition-shadow duration-500">
+              <div className={cn("absolute inset-x-0 top-0 h-[2px] transition-colors duration-1000", signalStyle.bgColor)} />
+              <div className={cn("absolute -top-20 -left-20 w-40 h-40 rounded-full blur-3xl opacity-20 pointer-events-none", signalStyle.bgColor)} />
 
-                        <div className={cn("flex flex-wrap items-center justify-center gap-2 transition-all duration-1000", isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4")}>
-                          <div className={cn("text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg border border-white/5 shadow-lg flex items-center gap-1.5", signalStyle.badgeClass)}>
-                            {signalStyle.icon} {signalStyle.label}
-                          </div>
-                          <div className={cn("text-[9px] font-black uppercase tracking-[0.15em] px-3 py-1.5 rounded-lg border relative overflow-hidden group/conf", getConfidenceStyle(result.confidence))}>
-                            <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover/conf:translate-x-[100%] transition-transform duration-1000" />
-                            {result.confidence}
-                          </div>
-                        </div>
+              <div className="relative z-10 flex flex-col md:flex-row items-center gap-8">
+                {/* Score Circle */}
+                <div className="relative group shrink-0">
+                  <div className={cn("absolute inset-0 rounded-full blur-2xl opacity-20 group-hover:opacity-40 transition-all duration-1000 animate-pulse-glow", signalStyle.bgColor)} />
+                  <div className="w-36 h-36 rounded-full border-4 border-white/5 flex items-center justify-center relative backdrop-blur-md shadow-2xl transition-transform duration-500 group-hover:scale-105">
+                    <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox="0 0 128 128">
+                      <circle cx="64" cy="64" r="58" fill="none" stroke="currentColor" strokeWidth="4" className="text-white/5" />
+                      <circle
+                        cx="64" cy="64" r="58"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        strokeDasharray="364"
+                        strokeDashoffset={364 - (animatedScore / 100) * 364}
+                        strokeLinecap="round"
+                        className={cn(signalStyle.color, "transition-all duration-300 ease-out drop-shadow-[0_0_12px_currentColor]")}
+                      />
+                    </svg>
+                    <div className="text-center relative z-10">
+                      <div className={cn("text-4xl font-black tracking-tighter transition-colors duration-1000", signalStyle.color)}>
+                        {animatedScore}
                       </div>
-
-                      {/* Signals List */}
-                      <div className="w-full space-y-3">
-                        <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground">
-                          Intelligence Signals
-                          <span className="text-[9px] text-muted-foreground/60 font-black bg-muted/50 px-1.5 py-0.5 rounded-full">
-                            {result.signals?.length || 0}
-                          </span>
-                        </h3>
-                        <ul className="grid gap-1.5">
-                          {result.signals?.map((signalText: string, idx: number) => {
-                            const normalizedSignal = signalText.toLowerCase()
-                            let mappedSeverity = "medium"
-                            let mappedIcon = Activity
-                            if (normalizedSignal.includes("missing") || normalizedSignal.includes("discovery") || normalizedSignal.includes("evaluated")) {
-                              mappedSeverity = "info"
-                              mappedIcon = Sparkles
-                            } else if (
-                              normalizedSignal.includes("capped")
-                              || normalizedSignal.includes("weak")
-                              || normalizedSignal.includes("fragile")
-                              || normalizedSignal.includes("limited")
-                              || normalizedSignal.includes("concentration")
-                            ) {
-                              mappedSeverity = "critical"
-                              mappedIcon = ShieldAlert
-                            } else if (
-                              normalizedSignal.includes("strong")
-                              || normalizedSignal.includes("healthy")
-                              || normalizedSignal.includes("solid")
-                              || normalizedSignal.includes("agrees well")
-                            ) {
-                              mappedSeverity = "success"
-                              mappedIcon = Zap
-                            }
-
-                            const severityColors: Record<string, string> = {
-                              critical: "bg-danger/10 text-danger border-danger/20",
-                              high: "bg-warning/20 text-warning border-warning/30",
-                              medium: "bg-primary/10 text-primary/80 border-primary/20",
-                              success: "bg-safe/20 text-safe border-safe/30",
-                              info: "bg-primary/5 text-primary/70 border-primary/10",
-                            }
-
-                            const Icon = mappedIcon
-                            return (
-                              <li key={idx} className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/10 bg-muted/10">
-                                <div className={cn("p-1 rounded-md border", severityColors[mappedSeverity])}>
-                                  <Icon className="h-3 w-3" />
-                                </div>
-                                <span className="text-[11px] font-bold leading-tight">{signalText}</span>
-                              </li>
-                            )
-                          })}
-                        </ul>
-                      </div>
+                      <div className="text-[8px] text-muted-foreground/80 font-black uppercase tracking-[0.2em] whitespace-nowrap mt-0.5">Intelligence</div>
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
 
-                {/* Metric Cards */}
-                {result.meta && (
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                {/* Score Info */}
+                <div className="flex-1 min-w-0 text-center md:text-left space-y-3">
+                  <div className="flex items-center gap-3 justify-center md:justify-start">
+                    {result.meta?.tokenImage && (
+                      <Image
+                        src={result.meta.tokenImage}
+                        alt={result.contractName}
+                        width={40}
+                        height={40}
+                        className="rounded-full border border-border/30 shrink-0"
+                        unoptimized
+                      />
+                    )}
+                    <div>
+                      <h2 className="text-2xl md:text-3xl font-black tracking-tight">{result.contractName}</h2>
+                      {result.meta?.tokenSymbol && <p className="text-sm text-muted-foreground/60 font-mono">${result.meta.tokenSymbol}</p>}
+                    </div>
+                  </div>
+                  <div className={cn("flex flex-wrap items-center justify-center md:justify-start gap-2 transition-all duration-1000", isRevealed ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4")}>
+                    <div className={cn("text-[9px] font-black uppercase tracking-widest px-4 py-1.5 rounded-lg border border-white/5 shadow-lg flex items-center gap-1.5", signalStyle.badgeClass)}>
+                      {signalStyle.icon} {signalStyle.label}
+                    </div>
+                    <div className={cn("text-[9px] font-black uppercase tracking-[0.15em] px-3 py-1.5 rounded-lg border relative overflow-hidden group/conf", getConfidenceStyle(result.confidence))}>
+                      <div className="absolute inset-0 bg-white/5 translate-x-[-100%] group-hover/conf:translate-x-[100%] transition-transform duration-1000" />
+                      {result.confidence}
+                    </div>
+                  </div>
+
+                  {/* Sub-scores inline */}
+                  {result.meta?.scoring && (
+                    <div className="flex flex-wrap gap-3 justify-center md:justify-start">
                       {[
-                      {
-                        label: "Price",
-                        value: formatReadablePrice(result.meta.price),
-                        icon: DollarSign
-                      },
+                        { label: "Quality", value: result.meta.scoring.quality, color: "text-emerald-400" },
+                        { label: "Momentum", value: result.meta.scoring.momentum, color: "text-blue-400" },
+                        { label: "Confidence", value: result.meta.scoring.confidenceScore, color: "text-purple-400" },
+                        { label: "Risk Cap", value: result.meta.scoring.riskCap, color: result.meta.scoring.riskCap < 100 ? "text-rose-400" : "text-emerald-400" },
+                      ].map((s) => (
+                        <div key={s.label} className="text-center group/sub">
+                          <div className={cn("text-lg font-black tabular-nums transition-transform group-hover/sub:scale-110", s.color)}>{s.value}</div>
+                          <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/40">{s.label}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* ===== SECURITY BADGES ===== */}
+            {result.meta?.security && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  {
+                    label: result.meta.security.mintAuthorityDisabled ? "Mint authority is disabled." : "Mint authority is enabled.",
+                    ok: result.meta.security.mintAuthorityDisabled,
+                  },
+                  {
+                    label: result.meta.security.freezeAuthorityDisabled ? "Freeze authority is disabled." : "Freeze authority is enabled.",
+                    ok: result.meta.security.freezeAuthorityDisabled,
+                  },
+                  {
+                    label: `LP burn profile is ${result.meta.security.lpBurnProfile}.`,
+                    ok: result.meta.security.lpBurnProfile === "strong",
+                  },
+                ].map((badge) => (
+                  <div
+                    key={badge.label}
+                    className={cn(
+                      "group/badge flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-300 hover:scale-[1.02]",
+                      badge.ok
+                        ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
+                        : "border-rose-500/20 bg-rose-500/5 text-rose-400 hover:border-rose-500/40 hover:shadow-lg hover:shadow-rose-500/5"
+                    )}
+                  >
+                    {badge.ok ? <CheckCircle2 className="h-4 w-4 shrink-0" /> : <XCircle className="h-4 w-4 shrink-0" />}
+                    {badge.label}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ===== ROW 1: Signals (left) | Chart (right) ===== */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+              {/* Intelligence Signals */}
+              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/signals shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
+                <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-40 group-hover/signals:opacity-100 transition-opacity" />
+                  <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
+                    Intelligence Signals
+                    <span className="text-[9px] text-muted-foreground/60 font-black bg-muted/50 px-1.5 py-0.5 rounded-full">
+                      {result.signals?.length || 0}
+                    </span>
+                  </h3>
+                  <ul className="grid gap-1.5">
+                    {result.signals?.map((signalText: string, idx: number) => {
+                      const normalizedSignal = signalText.toLowerCase()
+                      let mappedSeverity = "medium"
+                      let mappedIcon = Activity
+                      if (normalizedSignal.includes("missing") || normalizedSignal.includes("discovery") || normalizedSignal.includes("evaluated")) {
+                        mappedSeverity = "info"
+                        mappedIcon = Sparkles
+                      } else if (
+                        normalizedSignal.includes("capped")
+                        || normalizedSignal.includes("weak")
+                        || normalizedSignal.includes("fragile")
+                        || normalizedSignal.includes("limited")
+                        || normalizedSignal.includes("concentration")
+                      ) {
+                        mappedSeverity = "critical"
+                        mappedIcon = ShieldAlert
+                      } else if (
+                        normalizedSignal.includes("strong")
+                        || normalizedSignal.includes("healthy")
+                        || normalizedSignal.includes("solid")
+                        || normalizedSignal.includes("agrees well")
+                      ) {
+                        mappedSeverity = "success"
+                        mappedIcon = Zap
+                      }
+
+                      const severityColors: Record<string, string> = {
+                        critical: "bg-danger/10 text-danger border-danger/20",
+                        high: "bg-warning/20 text-warning border-warning/30",
+                        medium: "bg-primary/10 text-primary/80 border-primary/20",
+                        success: "bg-safe/20 text-safe border-safe/30",
+                        info: "bg-primary/5 text-primary/70 border-primary/10",
+                      }
+
+                      const Icon = mappedIcon
+                      return (
+                        <li key={idx} className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border/10 bg-muted/10 transition-all duration-200 hover:bg-muted/20 hover:border-border/20">
+                          <div className={cn("p-1 rounded-md border shrink-0", severityColors[mappedSeverity])}>
+                            <Icon className="h-3 w-3" />
+                          </div>
+                          <span className="text-[11px] font-bold leading-tight">{signalText}</span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                </div>
+
+              {/* Chart (right side of row 1) */}
+              <div className="min-w-0">
+                <TokenChart address={address || urlAddress || ""} tokenName={result.contractName} />
+              </div>
+            </div>
+
+            {/* ===== ROW 2: Metrics (left) | Holder Breakdown (middle) | Identity (right) ===== */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+              {/* Market Metrics */}
+              <div className="space-y-3">
+                {/* Market Metrics */}
+                {result.meta && (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
+                    {[
+                      { label: "Price", value: formatReadablePrice(result.meta.price), icon: DollarSign },
                       {
                         label: "Liquidity",
-                        value: (result.meta.liquidity !== null && result.meta.liquidity > 0)
-                          ? `$${result.meta.liquidity.toLocaleString()}`
-                          : "Discovery Phase",
+                        value: (result.meta.liquidity !== null && result.meta.liquidity > 0) ? formatCompact(result.meta.liquidity, "$") : "Discovery Phase",
                         icon: Droplets
                       },
                       {
                         label: "Volume (24h)",
-                        value: (result.meta.volume !== null && result.meta.volume > 0)
-                          ? `$${result.meta.volume.toLocaleString()}`
-                          : "Early Activity",
+                        value: (result.meta.volume !== null && result.meta.volume > 0) ? formatCompact(result.meta.volume, "$") : "Early Activity",
                         icon: Activity
                       },
                       {
                         label: "Holders",
-                        value: (result.meta.holders !== null && result.meta.holders > 0)
-                          ? result.meta.holders.toLocaleString()
-                          : "Unavailable",
-                        icon: Users
+                        value: (result.meta.holders !== null && result.meta.holders > 0) ? formatCompact(result.meta.holders) : "Unavailable",
+                        icon: Users,
+                        caution: result.meta.isPartialHolderData
                       },
                       {
                         label: result.meta.topHolderLabel || "Top 10 Wallets",
-                        value: (result.meta.topHolderPct !== null && result.meta.topHolderPct !== undefined)
-                          ? `${result.meta.topHolderPct}%`
-                          : "Scanning...",
+                        value: (result.meta.topHolderPct !== null && result.meta.topHolderPct !== undefined) ? `${result.meta.topHolderPct}%` : "Scanning...",
                         icon: result.meta.whaleWarning ? Skull : Users,
                         warn: result.meta.whaleWarning
                       },
+                      { label: "Creator Tokens", value: (result.meta.creator_tokens !== null) ? result.meta.creator_tokens : "---", icon: WalletCards },
                       {
-                        label: "Creator Tokens",
-                        value: (result.meta.creator_tokens !== null)
-                          ? result.meta.creator_tokens
-                          : "---",
-                        icon: WalletCards
+                        label: "Market Cap",
+                        value: (result.meta.marketCap !== null && result.meta.marketCap !== undefined && result.meta.marketCap > 0)
+                          ? formatCompact(result.meta.marketCap, "$")
+                          : "Unavailable",
+                        icon: TrendingUp
                       },
-                      ].map((stat, i) => (
-                        <Card key={i} className={cn(
-                          "glass border-border/40 hover:border-primary/30 transition-colors",
-                          stat.warn && "border-red-500/40 hover:border-red-500/60"
-                        )}>
-                          <CardContent className="p-3 flex flex-col items-center justify-center text-center space-y-1.5">
-                            <div className={cn(
-                              "p-1.5 rounded-md",
-                              stat.warn ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
-                            )}><stat.icon className="h-3.5 w-3.5" /></div>
-                            <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
-                            <div className={cn(
-                              "font-mono text-xs md:text-sm font-bold truncate max-w-full",
-                              stat.warn && "text-red-400"
-                            )}>{stat.value}</div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                    ].map((stat, i) => (
+                      <div key={i} className={cn(
+                        "group/metric relative rounded-xl border bg-card/60 backdrop-blur-sm p-3 flex flex-col items-center justify-center text-center space-y-1.5 transition-all duration-300 hover:scale-[1.03] hover:shadow-lg",
+                        stat.warn ? "border-rose-500/30 hover:border-rose-500/50 hover:shadow-rose-500/5" : "border-border/30 hover:border-primary/30 hover:shadow-primary/5"
+                      )}>
+                        <div className={cn(
+                          "p-1.5 rounded-md transition-colors",
+                          stat.warn ? "bg-rose-500/10 text-rose-400" : "bg-primary/10 text-primary"
+                        )}><stat.icon className="h-3.5 w-3.5" /></div>
+                        <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/50">{stat.label}</div>
+                        <div className={cn(
+                          "font-mono text-xs md:text-sm font-bold truncate max-w-full",
+                          stat.warn && "text-rose-400"
+                        )}>{stat.value}</div>
+                        {stat.caution && (
+                          <a
+                            href={`https://birdeye.so/token/${address || urlAddress}?chain=solana`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-[9px] text-amber-400 font-semibold flex items-center gap-1 hover:underline"
+                          >
+                            <Info className="h-3 w-3" /> &gt;1K holders — verify on Birdeye
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Holder Breakdown (middle col of row 2) */}
+              <div className="min-w-0">
+                {!!result.meta?.holderBreakdown?.length && (
+                  <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 space-y-3 overflow-hidden group/holder h-full shadow-[0_0_15px_-3px] shadow-rose-500/10 hover:shadow-rose-500/20 transition-shadow duration-500">
+                    <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-rose-500/40 to-transparent opacity-40 group-hover/holder:opacity-100 transition-opacity" />
+                    <div className="flex items-center gap-2">
+                      <div className={cn(
+                        "p-1.5 rounded-md",
+                        result.meta.whaleWarning ? "bg-rose-500/10 text-rose-400" : "bg-primary/10 text-primary"
+                      )}>
+                        {result.meta.whaleWarning ? <Skull className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Holder Breakdown</div>
+                        <div className="text-xs font-semibold text-foreground/90">
+                          {result.meta.holders === 1 ? "Single wallet ownership" : `${result.meta.holders} wallets currently hold the supply`}
+                        </div>
+                      </div>
                     </div>
 
-                    {!!result.meta.holderBreakdown?.length && (result.meta.holders !== null && result.meta.holders <= 10) && (
-                      <Card className="glass border-border/40 hover:border-primary/30 transition-colors">
-                        <CardContent className="p-4 space-y-3">
-                          <div className="flex items-center gap-2">
+                    <div className="space-y-2">
+                      {result.meta.holderBreakdown.map((wallet) => (
+                        <div
+                          key={wallet.rank}
+                          className="group/wallet flex items-center justify-between rounded-xl border border-border/20 bg-muted/10 px-3 py-2.5 transition-all duration-200 hover:border-primary/20 hover:bg-muted/20"
+                        >
+                          <div className="min-w-0">
+                            <div className="text-[11px] font-bold">Wallet {wallet.rank}: {wallet.pct}%</div>
+                            {wallet.address && (
+                              <div className="flex items-center gap-1 text-[10px] font-mono text-muted-foreground/50 mt-0.5">
+                                <span>{truncateAddress(wallet.address, 6, 4)}</span>
+                                <button
+                                  onClick={() => copyToClipboard(wallet.address)}
+                                  className="opacity-0 group-hover/wallet:opacity-100 transition-opacity hover:text-primary"
+                                  title="Copy address"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="text-right">
                             <div className={cn(
-                              "p-1.5 rounded-md",
-                              result.meta.whaleWarning ? "bg-red-500/10 text-red-500" : "bg-primary/10 text-primary"
-                            )}>
-                              {result.meta.whaleWarning ? <Skull className="h-3.5 w-3.5" /> : <Users className="h-3.5 w-3.5" />}
-                            </div>
-                            <div>
-                              <div className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/70">Holder Breakdown</div>
-                              <div className="text-xs font-semibold text-foreground/90">
-                                {result.meta.holders === 1 ? "Single wallet ownership" : `${result.meta.holders} wallets currently hold the supply`}
-                              </div>
-                            </div>
+                              "h-1.5 rounded-full transition-all duration-500",
+                              wallet.pct > 50 ? "bg-rose-400" : wallet.pct > 20 ? "bg-amber-400" : "bg-emerald-400"
+                            )} style={{ width: `${Math.max(8, wallet.pct * 0.6)}px` }} />
                           </div>
-
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {result.meta.holderBreakdown.map((wallet) => (
-                              <div
-                                key={wallet.rank}
-                                className="rounded-lg border border-border/20 bg-muted/10 px-3 py-2 text-[11px] font-medium"
-                              >
-                                {formatHolderBreakdownLine(wallet.rank, wallet.pct)}
-                              </div>
-                            ))}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    )}
-
-                    {result.meta.scoring && (
-                      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                        {[
-                          {
-                            label: "Quality",
-                            value: `${result.meta.scoring.quality}/100`,
-                            icon: ShieldCheck,
-                            tone: "bg-safe/10 text-safe"
-                          },
-                          {
-                            label: "Momentum",
-                            value: `${result.meta.scoring.momentum}/100`,
-                            icon: Activity,
-                            tone: "bg-blue-500/10 text-blue-400"
-                          },
-                          {
-                            label: "Confidence",
-                            value: `${result.meta.scoring.confidenceScore}/100`,
-                            icon: Sparkles,
-                            tone: "bg-primary/10 text-primary"
-                          },
-                          {
-                            label: "Risk Cap",
-                            value: `${result.meta.scoring.riskCap}/100`,
-                            icon: ShieldAlert,
-                            tone: result.meta.scoring.riskCap < 100 ? "bg-red-500/10 text-red-400" : "bg-emerald-500/10 text-emerald-400"
-                          },
-                        ].map((stat, i) => (
-                          <Card key={i} className="glass border-border/40 hover:border-primary/30 transition-colors">
-                            <CardContent className="p-3 flex flex-col items-center justify-center text-center space-y-1.5">
-                              <div className={cn("p-1.5 rounded-md", stat.tone)}><stat.icon className="h-3.5 w-3.5" /></div>
-                              <div className="text-[9px] font-black uppercase tracking-widest text-muted-foreground/60">{stat.label}</div>
-                              <div className="font-mono text-xs md:text-sm font-bold truncate max-w-full">{stat.value}</div>
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
-                {/* Intelligence Summary */}
-                <Card className="glass border-border/40 overflow-hidden relative">
-                  <CardHeader className="pb-2 pt-4 px-5 border-b border-border/20 bg-muted/5">
-                    <CardTitle className="flex items-center justify-between w-full text-[10px] uppercase font-black tracking-widest">
-                      <div className="flex items-center gap-2">
-                        <div className="p-1.5 rounded-md bg-primary/10 text-primary">
-                          <Sparkles className="h-3.5 w-3.5" />
-                        </div>
-                        Intelligence Summary
-                      </div>
-                      <span className="text-[9px] text-muted-foreground/40 font-mono tracking-tighter">DYOR.</span>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="pt-4 pb-5 px-5 relative z-10">
-                    <p className="text-[13px] leading-relaxed text-foreground/90 font-medium whitespace-pre-wrap">
-                      {renderHighlightedSummary(result.explanation)}
-                    </p>
-                  </CardContent>
-                </Card>
+                {/* >1K Holders Caution (shown in holder column if partial) */}
+                {result.meta?.isPartialHolderData && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 flex items-start gap-3 mt-3">
+                    <Info className="h-4 w-4 text-amber-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-amber-300/80">
+                      <span className="font-bold text-amber-400">Holder data is approximate.</span> This token has &gt;1,000 holders. Helius API cannot fully snapshot large holder sets. For accurate data, visit{" "}
+                      <a
+                        href={`https://birdeye.so/token/${address || urlAddress}?chain=solana`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline font-bold text-amber-400 hover:text-amber-300 inline-flex items-center gap-1"
+                      >
+                        Birdeye <ExternalLink className="h-3 w-3" />
+                      </a>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* ===== RIGHT COLUMN: Charts + Swap ===== */}
-              <div className="lg:col-span-7 space-y-5">
-                {/* Chart */}
-                <TokenChart address={address || urlAddress || ""} tokenName={result.contractName} />
+              {/* Identity & Ownership (right col of row 2) */}
+              <div className="min-w-0">
+                {result.meta?.identity && (
+                  <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/id h-full shadow-[0_0_15px_-3px] shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-shadow duration-500">
+                    <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent opacity-40 group-hover/id:opacity-100 transition-opacity" />
+                    <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
+                      <Fingerprint className="h-3.5 w-3.5 text-cyan-400" />
+                      Identity &amp; Ownership
+                    </h3>
+                    <div className="space-y-2">
+                      {[
+                        { label: "Token Mint", value: result.meta.identity.tokenMint },
+                        { label: "Pool Address", value: result.meta.identity.poolAddress },
+                        { label: "Deployer", value: result.meta.identity.deployer },
+                        { label: "Owner", value: result.meta.identity.owner },
+                        { label: "Created", value: result.meta.identity.createdAt ? new Date(result.meta.identity.createdAt).toLocaleString() : null },
+                      ].filter(row => row.value).map((row) => (
+                        <div key={row.label} className="group/row flex items-center justify-between rounded-lg border border-border/10 bg-muted/5 px-3 py-2 transition-all duration-200 hover:bg-muted/15 hover:border-border/20">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/50">{row.label}</span>
+                          <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold">
+                            {row.label === "Created" ? (
+                              <span>{row.value}</span>
+                            ) : (
+                              <>
+                                <span>{truncateAddress(row.value!, 4, 4)}</span>
+                                <button
+                                  onClick={() => copyToClipboard(row.value!)}
+                                  className="opacity-0 group-hover/row:opacity-100 transition-opacity text-muted-foreground/50 hover:text-primary"
+                                  title="Copy"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
 
-                {/* Swap Widget */}
-                <SwapWidget
-                  tokenAddress={address || urlAddress || ""}
-                  tokenSymbol={result.contractName}
-                />
+            {/* ===== MOBILE ONLY: Links & Social after Identity ===== */}
+            {result.meta?.social && (
+              <div className="lg:hidden">
+                <div className="relative rounded-2xl border border-purple-500/20 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/social shadow-[0_0_15px_-3px] shadow-purple-500/10 hover:shadow-purple-500/25 transition-shadow duration-500">
+                  <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent opacity-60 group-hover/social:opacity-100 transition-opacity" />
+                  <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-5">
+                    <div className="p-1.5 rounded-md bg-purple-500/10">
+                      <Globe className="h-3.5 w-3.5 text-purple-400" />
+                    </div>
+                    Links &amp; Social
+                  </h3>
+                  <div className="space-y-2.5">
+                    {[
+                      { label: "Website", value: result.meta.social.website, icon: Globe, isLink: true, iconColor: "text-blue-400" },
+                      { label: "Twitter", value: result.meta.social.twitter, icon: ExternalLink, isLink: true, iconColor: "text-sky-400" },
+                      { label: "Telegram", value: result.meta.social.telegram || "N/A", icon: Send, isLink: !!result.meta.social.telegram, iconColor: "text-cyan-400" },
+                      { label: "Quote Token", value: result.meta.social.quoteToken || "Wrapped Sol (SOL)", icon: DollarSign, isLink: false, iconColor: "text-emerald-400" },
+                      { label: "Searched Mint", value: address || urlAddress || "", icon: Fingerprint, isLink: false, isMint: true, iconColor: "text-amber-400" },
+                      { label: "Status", value: result.meta.social.status || result.meta.status || "unknown", icon: Activity, isLink: false, iconColor: "text-purple-400" },
+                    ].map((row) => (
+                      <div key={row.label} className="group/row flex items-center justify-between py-2.5 border-b border-border/10 last:border-b-0 transition-all duration-200 hover:bg-muted/10 px-2 -mx-2 rounded-lg">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+                          <row.icon className={cn("h-3.5 w-3.5", row.iconColor)} /> {row.label}
+                        </span>
+                        <div className="flex items-center gap-1.5 text-[11px] font-semibold max-w-[55%] text-right">
+                          {row.isLink && row.value && row.value !== "N/A" ? (
+                            <a href={row.value} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+                              {row.value.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                              <ExternalLink className="h-3 w-3 shrink-0" />
+                            </a>
+                          ) : row.isMint ? (
+                            <span className="font-mono flex items-center gap-1">
+                              {truncateAddress(row.value || "", 4, 4)}
+                              <button
+                                onClick={() => copyToClipboard(row.value || "")}
+                                className="opacity-0 group-hover/row:opacity-100 transition-opacity text-muted-foreground/50 hover:text-primary"
+                              >
+                                <Copy className="h-3 w-3" />
+                              </button>
+                            </span>
+                          ) : (
+                            <span className={cn(
+                              row.label === "Status" && row.value === "graduated" && "text-emerald-400",
+                              row.label === "Status" && row.value !== "graduated" && "text-muted-foreground/60"
+                            )}>{row.value || "N/A"}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ===== ROW 3: Summary (left) | Swap (middle) | Links & Social (right) ===== */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+
+              {/* Intelligence Summary */}
+              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl overflow-hidden group/summary shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
+                <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-40 group-hover/summary:opacity-100 transition-opacity" />
+                <div className="border-b border-border/20 bg-muted/5 px-5 py-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-widest text-muted-foreground">
+                    <div className="p-1.5 rounded-md bg-primary/10 text-primary">
+                      <Sparkles className="h-3.5 w-3.5" />
+                    </div>
+                    Intelligence Summary
+                  </div>
+                  <span className="text-[9px] text-muted-foreground/40 font-mono tracking-tighter">DYOR.</span>
+                </div>
+                <div className="p-5">
+                  <p className="text-[13px] leading-relaxed text-foreground/90 font-medium whitespace-pre-wrap">
+                    {renderHighlightedSummary(result.explanation)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Swap */}
+              <div className="min-w-0">
+                <SwapWidget tokenAddress={address || urlAddress || ""} tokenSymbol={result.contractName} />
+              </div>
+
+              {/* Links & Social (desktop only) */}
+              <div className="min-w-0 hidden lg:block">
+                {result.meta?.social && (
+                  <div className="relative rounded-2xl border border-purple-500/20 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/social shadow-[0_0_15px_-3px] shadow-purple-500/10 hover:shadow-purple-500/25 transition-shadow duration-500 h-full">
+                    <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent opacity-60 group-hover/social:opacity-100 transition-opacity" />
+                    <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-5">
+                      <div className="p-1.5 rounded-md bg-purple-500/10">
+                        <Globe className="h-3.5 w-3.5 text-purple-400" />
+                      </div>
+                      Links &amp; Social
+                    </h3>
+                    <div className="space-y-2.5">
+                      {[
+                        { label: "Website", value: result.meta.social.website, icon: Globe, isLink: true, iconColor: "text-blue-400" },
+                        { label: "Twitter", value: result.meta.social.twitter, icon: ExternalLink, isLink: true, iconColor: "text-sky-400" },
+                        { label: "Telegram", value: result.meta.social.telegram || "N/A", icon: Send, isLink: !!result.meta.social.telegram, iconColor: "text-cyan-400" },
+                        { label: "Quote Token", value: result.meta.social.quoteToken || "Wrapped Sol (SOL)", icon: DollarSign, isLink: false, iconColor: "text-emerald-400" },
+                        { label: "Searched Mint", value: address || urlAddress || "", icon: Fingerprint, isLink: false, isMint: true, iconColor: "text-amber-400" },
+                        { label: "Status", value: result.meta.social.status || result.meta.status || "unknown", icon: Activity, isLink: false, iconColor: "text-purple-400" },
+                      ].map((row) => (
+                        <div key={row.label} className="group/row flex items-center justify-between py-2.5 border-b border-border/10 last:border-b-0 transition-all duration-200 hover:bg-muted/10 px-2 -mx-2 rounded-lg">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 flex items-center gap-2">
+                            <row.icon className={cn("h-3.5 w-3.5", row.iconColor)} /> {row.label}
+                          </span>
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold max-w-[55%] text-right">
+                            {row.isLink && row.value && row.value !== "N/A" ? (
+                              <a href={row.value} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline truncate flex items-center gap-1">
+                                {row.value.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")}
+                                <ExternalLink className="h-3 w-3 shrink-0" />
+                              </a>
+                            ) : row.isMint ? (
+                              <span className="font-mono flex items-center gap-1">
+                                {truncateAddress(row.value || "", 4, 4)}
+                                <button
+                                  onClick={() => copyToClipboard(row.value || "")}
+                                  className="opacity-0 group-hover/row:opacity-100 transition-opacity text-muted-foreground/50 hover:text-primary"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                              </span>
+                            ) : (
+                              <span className={cn(
+                                row.label === "Status" && row.value === "graduated" && "text-emerald-400",
+                                row.label === "Status" && row.value !== "graduated" && "text-muted-foreground/60"
+                              )}>{row.value || "N/A"}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* ===== FULL-WIDTH: Quick Actions ===== */}
-            <ScanQuickActions result={result} />
+            <ScanQuickActions result={result} tokenAddress={address || urlAddress || ""} />
           </div>
         )}
 

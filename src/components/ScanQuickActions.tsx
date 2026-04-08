@@ -1,57 +1,110 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { cn } from "@/lib/utils"
-import { Plus, Bell, ChevronDown } from "lucide-react"
+import { Plus, Bell, X, Loader2 } from "lucide-react"
 import type { ScanResult } from "@/app/scan/page"
 
 interface QuickActionsProps {
   result: ScanResult
+  tokenAddress: string
 }
 
-export function ScanQuickActions({ result }: QuickActionsProps) {
-  const { data: session } = useSession()
-  const [showPortfolioForm, setShowPortfolioForm] = useState(false)
-  const [showAlertForm, setShowAlertForm] = useState(false)
-  const [portfolioLoading, setPortfolioLoading] = useState(false)
-  const [alertLoading, setAlertLoading] = useState(false)
-  const [portfolioError, setPortfolioError] = useState<string | null>(null)
-  const [alertError, setAlertError] = useState<string | null>(null)
-  const [portfolioSuccess, setPortfolioSuccess] = useState(false)
-  const [alertSuccess, setAlertSuccess] = useState(false)
+function Overlay({ open, onClose, children }: { open: boolean; onClose: () => void; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
 
-  if (!session?.user) {
-    return null
-  }
+  useEffect(() => {
+    if (!open) return
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    document.addEventListener("keydown", handler)
+    return () => document.removeEventListener("keydown", handler)
+  }, [open, onClose])
+
+  if (!open) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div ref={ref} className="relative w-full max-w-md glass border border-border/40 rounded-2xl shadow-2xl p-6 space-y-4 animate-in fade-in zoom-in-95 duration-200">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
+  const { data: session } = useSession()
+
+  // Portfolio state
+  const [showPortfolio, setShowPortfolio] = useState(false)
+  const [portfolioLoading, setPortfolioLoading] = useState(false)
+  const [portfolioError, setPortfolioError] = useState<string | null>(null)
+  const [portfolioSuccess, setPortfolioSuccess] = useState(false)
+  const [pQuantity, setPQuantity] = useState("")
+  const [pEntryPrice, setPEntryPrice] = useState("")
+  const [pStatus, setPStatus] = useState("HOLDING")
+  const [pNotes, setPNotes] = useState("")
+
+  // Alert state
+  const [showAlert, setShowAlert] = useState(false)
+  const [alertLoading, setAlertLoading] = useState(false)
+  const [alertError, setAlertError] = useState<string | null>(null)
+  const [alertSuccess, setAlertSuccess] = useState(false)
+  const [aType, setAType] = useState("PRICE_DROP")
+  const [aComparison, setAComparison] = useState("BELOW")
+  const [aThreshold, setAThreshold] = useState("")
+
+  // Auto-fill entry price from scan result
+  useEffect(() => {
+    if (result.meta?.price && result.meta.price > 0) {
+      setPEntryPrice(String(result.meta.price))
+    }
+  }, [result.meta?.price])
+
+  // Sync comparison type with alert type
+  useEffect(() => {
+    if (aType === "PRICE_DROP") setAComparison("BELOW")
+    else if (aType === "PRICE_RISE") setAComparison("ABOVE")
+    else setAComparison("CHANGE_BY_PERCENT")
+  }, [aType])
+
+  if (!session?.user) return null
+
+  const tokenName = result.contractName || "Unknown"
+  const tokenSymbol = result.contractName?.split(" ")[0]?.slice(0, 10) || "???"
+  const riskLevel = result.label.includes("STRONG") ? "LOW" : result.label.includes("GOOD") ? "MEDIUM" : "HIGH"
 
   const handleAddPortfolio = async () => {
+    const qty = parseFloat(pQuantity)
+    const price = parseFloat(pEntryPrice)
+    if (!qty || qty <= 0) { setPortfolioError("Quantity must be greater than 0"); return }
+    if (!price || price <= 0) { setPortfolioError("Entry price must be greater than 0"); return }
+
     setPortfolioLoading(true)
     setPortfolioError(null)
-    setPortfolioSuccess(false)
-
     try {
-      const response = await fetch("/api/portfolio", {
+      const res = await fetch("/api/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token_address: result.contractName || "",
-          token_name: result.contractName || "Unknown",
-          token_symbol: result.contractName?.split("").slice(0, 4).join("") || "???",
-          quantity: 0,
-          entry_price: 0,
-          risk_level: result.label.includes("STRONG") ? "LOW" : result.label.includes("GOOD") ? "MEDIUM" : "HIGH",
-          notes: `Score: ${result.score}/100 | Confidence: ${result.confidence}`,
+          token_address: tokenAddress,
+          token_name: tokenName,
+          token_symbol: tokenSymbol,
+          quantity: qty,
+          entry_price: price,
+          risk_level: riskLevel,
+          notes: pNotes || `Score: ${result.score}/100 | ${pStatus}`,
         }),
       })
-
-      if (!response.ok) {
-        const data = await response.json()
+      if (!res.ok) {
+        const data = await res.json()
         throw new Error(data.error || "Failed to add to portfolio")
       }
-
       setPortfolioSuccess(true)
-      setShowPortfolioForm(false)
+      setShowPortfolio(false)
+      setPQuantity("")
+      setPNotes("")
       setTimeout(() => setPortfolioSuccess(false), 3000)
     } catch (err) {
       setPortfolioError((err as Error).message)
@@ -61,30 +114,30 @@ export function ScanQuickActions({ result }: QuickActionsProps) {
   }
 
   const handleSetAlert = async () => {
+    const threshold = parseFloat(aThreshold)
+    if (!threshold || threshold <= 0) { setAlertError("Threshold must be greater than 0"); return }
+
     setAlertLoading(true)
     setAlertError(null)
-    setAlertSuccess(false)
-
     try {
-      const response = await fetch("/api/alerts", {
+      const res = await fetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token_address: result.contractName || "",
-          token_name: result.contractName || "Unknown",
-          alert_type: "PRICE_DROP",
-          comparison_type: "BELOW",
-          threshold: result.meta?.liquidity ? result.meta.liquidity * 0.8 : 100,
+          token_address: tokenAddress,
+          token_name: tokenName,
+          alert_type: aType,
+          comparison_type: aComparison,
+          threshold,
         }),
       })
-
-      if (!response.ok) {
-        const data = await response.json()
+      if (!res.ok) {
+        const data = await res.json()
         throw new Error(data.error || "Failed to create alert")
       }
-
       setAlertSuccess(true)
-      setShowAlertForm(false)
+      setShowAlert(false)
+      setAThreshold("")
       setTimeout(() => setAlertSuccess(false), 3000)
     } catch (err) {
       setAlertError((err as Error).message)
@@ -93,71 +146,203 @@ export function ScanQuickActions({ result }: QuickActionsProps) {
     }
   }
 
+  const inputClass = "w-full px-3 py-2 rounded-lg bg-background/50 border border-border/40 text-sm font-medium focus:outline-none focus:border-primary/60 transition-colors"
+  const labelClass = "text-[10px] font-black uppercase tracking-widest text-muted-foreground/70"
+
   return (
     <div className="space-y-4">
+      {/* Success toasts */}
+      {portfolioSuccess && (
+        <div className="text-xs text-green-500 bg-green-500/10 px-4 py-2.5 rounded-lg border border-green-500/20 font-semibold text-center">✓ Added to portfolio!</div>
+      )}
+      {alertSuccess && (
+        <div className="text-xs text-green-500 bg-green-500/10 px-4 py-2.5 rounded-lg border border-green-500/20 font-semibold text-center">✓ Alert created!</div>
+      )}
+
+      {/* Buttons */}
       <div className="flex flex-col sm:flex-row gap-3">
         <button
-          onClick={() => setShowPortfolioForm(!showPortfolioForm)}
-          className="flex-1 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors font-semibold text-sm text-primary"
+          onClick={() => { setShowPortfolio(true); setPortfolioError(null) }}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors font-semibold text-sm text-primary"
         >
-          <div className="flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            Add to Portfolio
-          </div>
-          <ChevronDown className={cn("h-4 w-4 transition-transform", showPortfolioForm && "rotate-180")} />
+          <Plus className="h-4 w-4" />
+          Add to Portfolio
         </button>
-
         <button
-          onClick={() => setShowAlertForm(!showAlertForm)}
-          className="flex-1 flex items-center justify-between gap-3 px-4 py-3 rounded-xl bg-warning/10 border border-warning/30 hover:bg-warning/20 transition-colors font-semibold text-sm text-warning"
+          onClick={() => { setShowAlert(true); setAlertError(null) }}
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-warning/10 border border-warning/30 hover:bg-warning/20 transition-colors font-semibold text-sm text-warning"
         >
-          <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4" />
-            Set Alert
-          </div>
-          <ChevronDown className={cn("h-4 w-4 transition-transform", showAlertForm && "rotate-180")} />
+          <Bell className="h-4 w-4" />
+          Set Alert
         </button>
       </div>
 
-      {showPortfolioForm && (
-        <div className="glass rounded-2xl border border-primary/30 p-4 space-y-3 bg-primary/5">
-          <p className="text-sm text-muted-foreground">Quick add this token to your watchlist. You can update quantity and entry price later in your portfolio dashboard.</p>
-          {portfolioError && <div className="text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">{portfolioError}</div>}
-          {portfolioSuccess && <div className="text-xs text-green-500 bg-green-500/10 px-3 py-2 rounded-lg border border-green-500/20">✓ Added to portfolio!</div>}
+      {/* ===== PORTFOLIO POPUP ===== */}
+      <Overlay open={showPortfolio} onClose={() => setShowPortfolio(false)}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-black uppercase tracking-widest text-primary">Add to Portfolio</h3>
+          <button onClick={() => setShowPortfolio(false)} className="p-1 rounded-lg hover:bg-muted/50 transition-colors">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {/* Auto-filled read-only fields */}
+          <div className="space-y-1">
+            <label className={labelClass}>Token Address</label>
+            <input type="text" readOnly value={tokenAddress} className={cn(inputClass, "text-muted-foreground cursor-not-allowed")} />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className={labelClass}>Token Name</label>
+              <input type="text" readOnly value={tokenName} className={cn(inputClass, "text-muted-foreground cursor-not-allowed")} />
+            </div>
+            <div className="space-y-1">
+              <label className={labelClass}>Risk Level</label>
+              <input type="text" readOnly value={riskLevel} className={cn(inputClass, "text-muted-foreground cursor-not-allowed")} />
+            </div>
+          </div>
+
+          {/* Editable fields */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className={labelClass}>Quantity *</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 1000"
+                value={pQuantity}
+                onChange={(e) => setPQuantity(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className={labelClass}>Entry Price ($) *</label>
+              <input
+                type="number"
+                step="any"
+                min="0"
+                placeholder="e.g. 0.0025"
+                value={pEntryPrice}
+                onChange={(e) => setPEntryPrice(e.target.value)}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className={labelClass}>Status</label>
+            <select value={pStatus} onChange={(e) => setPStatus(e.target.value)} className={inputClass}>
+              <option value="HOLDING">Holding</option>
+              <option value="WATCHING">Watching</option>
+              <option value="SOLD">Sold</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className={labelClass}>Notes (optional)</label>
+            <input
+              type="text"
+              placeholder="e.g. Good entry on dip..."
+              value={pNotes}
+              onChange={(e) => setPNotes(e.target.value)}
+              className={inputClass}
+            />
+          </div>
+
+          {portfolioError && (
+            <div className="text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">{portfolioError}</div>
+          )}
+
           <button
             onClick={handleAddPortfolio}
             disabled={portfolioLoading}
             className={cn(
-              "w-full py-2 rounded-lg font-semibold text-sm transition-colors",
-              portfolioLoading
-                ? "bg-primary/30 text-primary cursor-not-allowed"
-                : "bg-primary text-primary-foreground hover:bg-primary/90"
+              "w-full py-2.5 rounded-xl font-bold text-sm transition-colors",
+              portfolioLoading ? "bg-primary/30 text-primary cursor-not-allowed" : "bg-primary text-primary-foreground hover:bg-primary/90"
             )}
           >
-            {portfolioLoading ? "Adding..." : "Confirm Add to Portfolio"}
+            {portfolioLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Confirm Add to Portfolio"}
           </button>
         </div>
-      )}
+      </Overlay>
 
-      {showAlertForm && (
-        <div className="glass rounded-2xl border border-warning/30 p-4 space-y-3 bg-warning/5">
-          <p className="text-sm text-muted-foreground">Set a price drop alert at 80% of current liquidity. You can customize thresholds in alerts dashboard.</p>
-          {alertError && <div className="text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">{alertError}</div>}
-          {alertSuccess && <div className="text-xs text-green-500 bg-green-500/10 px-3 py-2 rounded-lg border border-green-500/20">✓ Alert created!</div>}
+      {/* ===== ALERT POPUP ===== */}
+      <Overlay open={showAlert} onClose={() => setShowAlert(false)}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm font-black uppercase tracking-widest text-warning">Set Price Alert</h3>
+          <button onClick={() => setShowAlert(false)} className="p-1 rounded-lg hover:bg-muted/50 transition-colors">
+            <X className="h-4 w-4 text-muted-foreground" />
+          </button>
+        </div>
+
+        <div className="space-y-3">
+          {/* Auto-filled read-only fields */}
+          <div className="space-y-1">
+            <label className={labelClass}>Token Address</label>
+            <input type="text" readOnly value={tokenAddress} className={cn(inputClass, "text-muted-foreground cursor-not-allowed")} />
+          </div>
+          <div className="space-y-1">
+            <label className={labelClass}>Token Name</label>
+            <input type="text" readOnly value={tokenName} className={cn(inputClass, "text-muted-foreground cursor-not-allowed")} />
+          </div>
+
+          {/* Editable fields */}
+          <div className="space-y-1">
+            <label className={labelClass}>Alert Type</label>
+            <select value={aType} onChange={(e) => setAType(e.target.value)} className={inputClass}>
+              <option value="PRICE_DROP">Price Drop</option>
+              <option value="PRICE_RISE">Price Rise</option>
+              <option value="SCORE_CHANGE">Score Change</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className={labelClass}>Condition</label>
+            <select value={aComparison} onChange={(e) => setAComparison(e.target.value)} className={inputClass}>
+              <option value="BELOW">Below threshold</option>
+              <option value="ABOVE">Above threshold</option>
+              <option value="CHANGE_BY_PERCENT">Change by %</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className={labelClass}>
+              Threshold {aComparison === "CHANGE_BY_PERCENT" ? "(%)" : "($)"} *
+            </label>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              placeholder={aComparison === "CHANGE_BY_PERCENT" ? "e.g. 20" : result.meta?.price ? `Current: $${result.meta.price}` : "e.g. 0.001"}
+              value={aThreshold}
+              onChange={(e) => setAThreshold(e.target.value)}
+              className={inputClass}
+            />
+            {result.meta?.price && result.meta.price > 0 && aComparison !== "CHANGE_BY_PERCENT" && (
+              <p className="text-[10px] text-muted-foreground/60 mt-1">
+                Current price: ${result.meta.price}
+              </p>
+            )}
+          </div>
+
+          {alertError && (
+            <div className="text-xs text-red-500 bg-red-500/10 px-3 py-2 rounded-lg border border-red-500/20">{alertError}</div>
+          )}
+
           <button
             onClick={handleSetAlert}
             disabled={alertLoading}
             className={cn(
-              "w-full py-2 rounded-lg font-semibold text-sm transition-colors",
-              alertLoading
-                ? "bg-warning/30 text-warning cursor-not-allowed"
-                : "bg-warning text-warning-foreground hover:bg-warning/90"
+              "w-full py-2.5 rounded-xl font-bold text-sm transition-colors",
+              alertLoading ? "bg-warning/30 text-warning cursor-not-allowed" : "bg-warning text-warning-foreground hover:bg-warning/90"
             )}
           >
-            {alertLoading ? "Creating..." : "Confirm Create Alert"}
+            {alertLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Confirm Create Alert"}
           </button>
         </div>
-      )}
+      </Overlay>
     </div>
   )
 }

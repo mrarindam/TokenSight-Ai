@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import React, { useState } from 'react'
 import { Plus, Minus, MessageSquare, HelpCircle, ArrowRight } from 'lucide-react'
@@ -70,56 +70,48 @@ function FAQItem({ question, answer, isOpen, onToggle }: FAQItemProps) {
 const FAQ_DATA = [
   {
     question: "What is TokenSight AI?",
-    answer: "TokenSight AI is an AI-powered token intelligence platform that analyzes early-stage and Bags ecosystem tokens using liquidity, trading activity, holder behavior, volume trends, and on-chain signals to help you make smarter entry decisions."
+    answer: "TokenSight AI is an AI-powered token intelligence platform built on Solana. It scans any token address and generates an Intelligence Score based on liquidity, holder distribution, trading activity, creator behavior, and on-chain signals - helping you make smarter entry decisions with real data instead of hype."
   },
   {
-    question: "What is Bags?",
-    answer: "Bags is a launch platform where new tokens are created and introduced to the market.\n\nTokenSight AI focuses on analyzing tokens that originate from Bags, especially during their early stages.\n\nYou can explore the platform here:\nhttps://bags.fm/"
+    question: "How does the Intelligence Score work?",
+    answer: "The Intelligence Score is the average of four core parameters:\n\n- Quality - evaluates liquidity depth, holder count, whale concentration, creator behavior, metadata, and token age\n- Momentum - measures 24h volume, volume-to-liquidity efficiency, and market readiness\n- Confidence - how much reliable data was available for the scan\n- Risk Cap - safety ceiling that limits the score when extreme red flags are detected\n\nIntelligence Score = (Quality + Momentum + Confidence + Risk Cap) / 4\n\nEach parameter scores 0-100, and the final score is easy to understand at a glance."
   },
   {
-    question: "Does TokenSight AI scan all tokens?",
-    answer: "No — TokenSight AI currently focuses only on tokens launched within the Bags ecosystem.\n\nWe analyze all tokens that originate from Bags, including early-stage and newly launched tokens, using on-chain and market data.\n\nTokens from other platforms or ecosystems are not included at this time."
+    question: "What do the score labels mean?",
+    answer: "Each scan result gets a label based on the Intelligence Score:\n\n- STRONG OPPORTUNITY (75+, HIGH confidence) - Strong setup across all metrics\n- GOOD ENTRY (60+) - Constructive setup worth watching\n- WATCH SIGNAL (40-59) - Mixed signals, needs more data\n- WEAK ENTRY (below 40) - Weak fundamentals, high risk\n\nThese labels help you quickly assess without reading every detail."
   },
   {
-    question: "How is TokenSight different from rug detectors?",
-    answer: "Instead of focusing on scams, TokenSight AI focuses on opportunity. It helps you evaluate token strength, momentum, and entry timing using real-time data."
+    question: "Can I scan any Solana token?",
+    answer: "Yes - TokenSight AI can scan any Solana token address. We pull data from Helius, Birdeye, DexScreener, and Bags API in parallel. Even very new tokens with limited data will get a fair scan - missing data lowers confidence rather than penalizing the score."
   },
   {
-    question: "What does the Intelligence Score mean?",
-    answer: "Intelligence Score shows how strong a token’s overall setup looks based on real-time data.\n\nWe start every token at a neutral score of 50, then adjust it using key signals like liquidity, trading activity, holder distribution, and creator behavior.\n\nStrong signals push the score higher, while weak signals bring it down. If data is missing (common for new tokens), we don’t penalize it — instead, we lower the confidence level.\n\nIn simple terms:\nHigher score = stronger opportunity\nLower score = weaker setup\nConfidence = how reliable the data is"
+    question: "How does the Portfolio feature work?",
+    answer: "After scanning a token, you can add it to your portfolio directly from the scan results. A popup lets you enter your quantity, entry price, and status (Holding, Watching, or Sold). The token address, name, and risk level are auto-filled from the scan.\n\nYou can manage all your positions from the Portfolio dashboard."
   },
   {
-    question: "How is the Intelligence Score calculated?",
-    answer: "The Intelligence Score is calculated by analyzing multiple on-chain and market signals.\n\nEach token starts at 50, and we adjust the score based on:\n\n• Liquidity – strong liquidity increases confidence\n• Holders – more holders means better distribution\n• Volume & Momentum – shows real market activity\n• Creator Behavior – detects experienced or risky patterns\n• Early Stage Status – new tokens may have limited data\n\nEach factor adds or subtracts points depending on strength.\n\nIf some data is missing, we skip it instead of penalizing — so early-stage tokens are treated fairly."
+    question: "How do Price Alerts work?",
+    answer: "From any scan result, click 'Set Alert' to create a custom price alert. You can choose:\n\n- Alert Type - Price Drop, Price Rise, or Score Change\n- Condition - Below, Above, or Change by %\n- Threshold - your target price or percentage\n\nThe token address and name are auto-filled. Alerts are monitored automatically and notifications are sent via Telegram if linked."
   },
   {
-    question: "How is Intelligence Accuracy calculated?",
-    answer: "Intelligence Accuracy measures how effectively you identify strong token opportunities.\n\nEach scan contributes to your accuracy based on its quality. High-scoring tokens (70+) have the most impact, while low-quality scans have minimal effect.\n\nWe use a weighted average system, meaning better signals improve your accuracy faster.\n\nIn simple terms:\nMore high-quality scans = higher Intelligence Accuracy"
+    question: "What is the Active Streak?",
+    answer: "Your Active Streak counts how many consecutive days you've scanned at least one token. It resets if you miss a day, but restarts at 1 on your next scan - you never get stuck at 0.\n\nStreaks are calculated from your actual scan history in the database, so they're always accurate."
   },
   {
-    question: "How does the leaderboard ranking work?",
-    answer: "The leaderboard ranks analysts based on total scan activity.\n\nThe more tokens you scan, the higher your rank.\n\nMetrics like Intelligence Accuracy and streak show your skill and consistency, but they do not affect your rank.\n\nIn simple terms:\nMore scans = higher position on the leaderboard."
+    question: "How does the Leaderboard work?",
+    answer: "The leaderboard ranks analysts by total scan count. The more tokens you scan, the higher your rank.\n\nYour Intelligence Accuracy and streak are displayed as skill indicators but don't affect ranking. Leaderboard data refreshes every 15 seconds."
   },
   {
-    question: "How are High-Confidence Signals selected?",
-    answer: "We only show tokens that pass multiple checks for strength and quality.\n\nA token must have a strong Intelligence Score (65+), enough liquidity and trading activity (over $1K), and a basic profile (like logo, website, or social links).\n\nWe also filter out flagged or suspicious tokens.\n\nIn simple terms:\nStrong data + real market activity + complete profile = High-Confidence signal"
+    question: "What data sources does TokenSight use?",
+    answer: "TokenSight pulls data from multiple sources in parallel:\n\n- Helius - on-chain holder data, creator wallet history, token accounts\n- Birdeye - real-time price, liquidity, volume, token overview\n- DexScreener - pair data, market depth, trading pairs\n- Bags API - token launch metadata, social links, descriptions\n- Jupiter - swap integration and routing\n\nData from multiple sources is cross-checked for accuracy."
   },
   {
-    question: "What are Early Stage Tokens?",
-    answer: "Early Stage Tokens are newly launched tokens within the Bags ecosystem.\n\nThese tokens are in their early phase, which means they may have limited data, lower liquidity, and evolving market activity.\n\nThey can offer early opportunities, but also come with higher uncertainty."
-  },
-  {
-    question: "Does TokenSight include all users' scans?",
-    answer: "Yes. All scans — including both logged-in and anonymous users — are included in the platform’s analytics and insights."
-  },
-  {
-    question: "How often is data updated?",
-    answer: "Token data and signals are updated in real-time as new scans and on-chain activity occur."
+    question: "What does the AI Summary explain?",
+    answer: "The Intelligence Summary at the bottom of every scan result breaks down exactly why each parameter scored what it did:\n\n- Quality - explains liquidity, holders, whale %, creator history\n- Momentum - explains volume, V/L ratio, market status\n- Confidence - explains data availability and metadata coverage\n- Risk Cap - lists specific risk flags that capped the score\n\nThe final line shows the Intelligence Score formula so you can verify it yourself."
   },
   {
     question: "Is this financial advice?",
-    answer: "No. TokenSight AI provides data-driven insights, not financial advice. Always do your own research before making decisions."
-  }
+    answer: "No. TokenSight AI provides data-driven intelligence and on-chain analytics - not financial advice. Always do your own research (DYOR) before making any trading decisions."
+  },
 ]
 
 export default function FAQ() {
@@ -211,7 +203,7 @@ export default function FAQ() {
               {/* CEO LOGO / BRANDING SUBTLE */}
               <div className="pt-4 opacity-40 hover:opacity-100 transition-opacity flex flex-col items-center gap-1 group">
                  <div className="text-[10px] font-black tracking-[0.5em] text-foreground/50 group-hover:text-primary transition-colors">THE NETWORK LEAD & DEVELOPED BY</div>
-                 <div className="text-xl font-black italic tracking-tighter text-foreground">ARINDAM <span className="text-primary text-[6px] not-italic align-top ml-0.5">©</span></div>
+                 <div className="text-xl font-black italic tracking-tighter text-foreground">ARINDAM <span className="text-primary text-[6px] not-italic align-top ml-0.5">Â©</span></div>
               </div>
            </div>
         </div>

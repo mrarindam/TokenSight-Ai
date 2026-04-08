@@ -1,117 +1,176 @@
-#  TokenSight AI
+# TokenSight AI
 
 **Scan smarter. Discover early. Trade with intelligence.**
 
-TokenSight AI is a real-time on-chain intelligence platform designed to identify high-conviction token opportunities in the Bags ecosystem. It transforms raw blockchain data into actionable insights using a transparent scoring engine.
+TokenSight AI is a real-time on-chain intelligence platform for Solana tokens. It aggregates data from multiple sources — Helius, DexScreener, Birdeye, Bags API — and transforms it into actionable insights using a transparent scoring engine, security analysis, and AI-generated summaries.
 
 ---
 
-##  What We Do
+## What We Do
 
-TokenSight AI analyzes multiple on-chain and market signals to evaluate token quality and generate a **0–100 Intelligence Score**.
+TokenSight AI analyzes on-chain and market signals to evaluate any Solana token and generate a **0–100 Intelligence Score** broken into four sub-scores.
 
 We help traders and analysts:
-- Discover early-stage tokens
-- Evaluate market strength
-- Identify high-quality opportunities
-- Avoid low-quality or risky assets
+
+- Discover early-stage tokens before they trend
+- Evaluate token quality, momentum, and risk in seconds
+- Verify security — mint authority, freeze authority, LP burn status
+- Identify holder concentration and wallet-level breakdown
+- Track portfolios, set price alerts, and swap directly from scan results
 
 ---
 
-## ⚙️ Core Features
+## Core Features
 
-### 🔍 Intelligence Scoring Engine
-- Base score system (0–100)
-- Transparent weighted logic
-- Real-time evaluation
+### Token Scanner
 
-### 📊 Multi-Source Data Analysis
-- Liquidity (DexScreener)
-- Volume (24h trading activity)
-- Holder distribution (Helius RPC)
-- Creator behavior (Bags API)
+The heart of TokenSight AI. Paste any Solana token address and get a full intelligence report.
 
----
+**Intelligence Score (0–100)** — Weighted average of four sub-scores:
 
-### 🧠 Smart Signal Labels
-- 🟢 Strong Opportunity (80–100)
-- 🔵 Good Entry (60–79)
-- 🟡 Watch Signal (35–59)
-- 🔴 Weak Entry (0–34)
+| Sub-Score | What It Measures |
+|-----------|-----------------|
+| **Quality** | Liquidity depth, holder distribution, metadata, verified socials |
+| **Momentum** | 24h volume, price velocity, buyer/seller ratio |
+| **Confidence** | Cross-source data agreement and analysis reliability |
+| **Risk Cap** | Risk ceiling — concentrated holdings, low liquidity, suspicious patterns |
 
----
+**Scan results include:**
 
-### 🛡️ Confidence System
-- HIGH → Full data available
-- MEDIUM → Partial data
-- LOW → Early discovery phase
+- **Token Logo & Name** — Logo, name, and symbol displayed at the top
+- **Animated Score Ring** — Color-coded (red ≤30, yellow 31–59, blue 60–84, green 85+) with smooth fill animation
+- **Security Badges** — Mint authority, Freeze authority, and LP burn profile (green = safe, red = risky)
+- **Intelligence Signals** — AI-generated bullet points with severity-coded icons
+- **Market Metrics** — 7 cards: Price, Liquidity, Volume (24h), Holders, Top 10 Concentration, Creator Tokens, Market Cap (K/M/B formatting)
+- **Holder Breakdown** — Top 10 wallets with percentage bars, truncated addresses, and copy buttons
+- **>1K Holder Warning** — Caution banner with Birdeye link when holder set exceeds API snapshot limits
+- **Identity & Ownership** — Token Mint, Pool Address, Deployer, Owner, Created timestamp with copy-to-clipboard
+- **Links & Social** — Website, Twitter, Telegram, Quote Token, Status (aggregated from Bags, DexScreener, Birdeye)
+- **AI Summary** — Natural-language analysis with keyword highlighting (green = bullish, red = bearish)
+- **Live Chart** — Embedded DexScreener price chart
+- **Swap Widget** — Jupiter-powered swaps with MEV protection, without leaving the page
+- **Quick Actions** — One-click add to portfolio, set alert, or view on explorer
 
----
+**Layout:** 3-row grid with glowing widget borders. Fully responsive — stacks vertically on mobile.
 
-### 🚨 Anti-Abuse System
-- 24h duplicate scan protection
-- Prevents spam boosting
-- Ensures fair accuracy tracking
+### Risk Labels
 
----
-
-### 🏆 Leaderboard System
-- Ranked by total scans
-- Real-time analyst competition
-- Identity badges (Bronze / Silver / Gold)
-
----
-
-### 📡 High-Confidence Signals
-- Only top-quality tokens promoted
-- Requires:
-  - Score ≥ 65
-  - Liquidity ≥ $1000
-  - Volume ≥ $1000
-  - Valid metadata
+| Label | Score |
+|-------|-------|
+| 🟢 STRONG OPPORTUNITY | 85+ |
+| 🔵 GOOD ENTRY | 60–84 |
+| 🟡 WATCH SIGNAL | 31–59 |
+| 🔴 HIGH RISK | ≤30 |
 
 ---
 
-## 📈 Intelligence Accuracy
+### Scan History
 
-A weighted system that measures user skill:
-
-- High score scans → high impact
-- Low score scans → minimal impact
-
-> More high-quality discoveries = higher accuracy
+View all your past scans with scores, tokens, and timestamps. Re-scan any token with one click.
 
 ---
 
-## 🔌 Tech Stack
+### Portfolio Tracker
 
-- **Frontend:** Next.js + Tailwind CSS
-- **Backend:** Node.js API Routes
-- **Database:** Supabase
-- **AI Engine:** Groq (Llama)
-- **Blockchain Data:** Helius RPC
-- **Market Data:** DexScreener
-- **Token Source:** Bags API
+Track your Solana token holdings with live prices.
+
+- **Live prices** via DexScreener
+- **ROI calculation** — Real-time profit/loss per holding
+- **Risk tagging** — LOW / MEDIUM / HIGH per position
+- **Notes** — Personal thesis or notes per token
+- **Summary cards** — Total holdings, invested value, live value, overall PnL
 
 ---
 
-## 🔐 Security & Integrity
+### Alerts Center
 
-- Server-side API handling
-- No exposed keys
+Set price alerts for any Solana token.
+
+- **Price Drop** — Triggers below your threshold
+- **Price Rise** — Triggers above your threshold
+- **Volume Spike** — Triggers on unusual volume
+- **Telegram notifications** — Alerts sent to your linked Telegram bot
+- **Cron-based checking** — Automated background monitoring
+
+---
+
+### Leaderboard
+
+Competitive analyst rankings.
+
+- Ranked by total scans and accuracy
+- League badges (Bronze → Silver → Gold → Diamond)
+- Streak tracking — consecutive daily scan streaks
+- Real-time updates
+
+---
+
+### Telegram Integration
+
+Link your Telegram account for instant notifications.
+
+- Alert triggers sent directly to Telegram
+- Bot webhook integration
+- Manage linking from Settings page
+
+---
+
+### Wallet Integration
+
+Connect your Phantom wallet for Solana-native authentication.
+
+- Wallet-based login (alongside Google / GitHub / credentials)
+- Link/unlink wallet from profile settings
+
+---
+
+## Intelligence Accuracy
+
+A weighted system that measures analyst skill:
+
+- High-score scans → high impact on accuracy
+- Low-score scans → minimal impact
+- More high-quality discoveries = higher accuracy rating
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Framework** | Next.js 14 (App Router) |
+| **Styling** | Tailwind CSS + shadcn/ui |
+| **Auth** | NextAuth.js (Google, GitHub, Credentials, Wallet) |
+| **Database** | Supabase (PostgreSQL) |
+| **AI Engine** | Groq (Llama) |
+| **Blockchain Data** | Helius RPC (getAsset, getTokenAccounts) |
+| **Market Data** | DexScreener (pairs, fdv, socials) |
+| **Price Data** | Birdeye (price, overview, extensions) |
+| **Token Source** | Bags API (metadata, trending) |
+| **Swaps** | Jupiter Aggregator |
+| **Notifications** | Telegram Bot API |
+| **Theming** | next-themes (dark / light mode) |
+
+---
+
+## Security & Integrity
+
+- Server-side API handling with service-role Supabase client
+- No API keys exposed to the client
+- Row-Level Security (RLS) policies on all Supabase tables
+- Anti-spam duplicate scan detection (24h cooldown)
 - Production-safe logging
-- Anti-spam & duplicate detection
+- NextAuth session validation on all protected routes
 
 ---
 
-## 🌐 Platform Scope
+## Platform Scope
 
-TokenSight AI currently scans:
-> ✅ Bags ecosystem tokens only
+TokenSight AI scans **any Solana token** — not limited to a single ecosystem. Data is aggregated from Helius, DexScreener, Birdeye, and Bags API for maximum coverage.
 
 ---
 
-## ⚠️ Disclaimer
+## Disclaimer
 
 TokenSight AI provides AI-generated intelligence scores based on on-chain and market data. These insights are for informational purposes only and do not constitute financial advice.
 

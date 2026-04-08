@@ -7,31 +7,31 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 240 10% 4%;
+    --background: 220 20% 97%;
+    --foreground: 224 20% 10%;
     --card: 0 0% 100%;
-    --card-foreground: 240 10% 4%;
+    --card-foreground: 224 20% 10%;
     --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 4%;
+    --popover-foreground: 224 20% 10%;
     --primary: 221 83% 53%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 240 5% 96%;
-    --secondary-foreground: 240 6% 10%;
-    --muted: 240 5% 96%;
-    --muted-foreground: 240 4% 46%;
-    --accent: 240 5% 96%;
-    --accent-foreground: 240 6% 10%;
+    --secondary: 220 14% 94%;
+    --secondary-foreground: 224 20% 10%;
+    --muted: 220 14% 94%;
+    --muted-foreground: 220 10% 40%;
+    --accent: 220 14% 92%;
+    --accent-foreground: 224 20% 10%;
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 98%;
-    --border: 240 6% 90%;
-    --input: 240 6% 90%;
+    --border: 220 13% 86%;
+    --input: 220 13% 86%;
     --ring: 221 83% 53%;
 
     --radius: 0.75rem;
 
-    --safe: 152 69% 41%;
-    --warning: 38 92% 50%;
-    --danger: 0 72% 51%;
+    --safe: 152 69% 36%;
+    --warning: 38 92% 44%;
+    --danger: 0 72% 48%;
 
     --glow-primary: 221 83% 53%;
     --glow-safe: 152 69% 50%;
@@ -75,7 +75,10 @@
   body {
     @apply bg-background text-foreground antialiased transition-colors duration-300;
     font-family: 'Inter', sans-serif;
-    background-image: 
+  }
+  .dark body,
+  body:where(.dark *) {
+    background-image:
       linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
     background-size: 40px 40px;
@@ -109,6 +112,33 @@
   .glass-strong {
     @apply bg-card/80 backdrop-blur-2xl border border-border/40;
   }
+}
+
+/* Light mode: add subtle shadows instead of relying on borders */
+:root .glass,
+:root .glass-strong {
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 4px 12px rgba(0, 0, 0, 0.04);
+}
+:root .hover-lift:hover {
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.08),
+    0 2px 8px rgba(0, 0, 0, 0.05);
+}
+:root .hover-lift-premium:hover {
+  transform: translateY(-8px) scale(1.03);
+  box-shadow:
+    0 20px 40px -15px rgba(0, 0, 0, 0.12),
+    0 0 20px -5px hsl(221 83% 53% / 0.15);
+}
+
+/* Light mode: hero grid uses subtle dark lines */
+:root .hero-grid {
+  background-image:
+    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+  background-size: 60px 60px;
 }
 
 /* ===== Premium Card Hover ===== */

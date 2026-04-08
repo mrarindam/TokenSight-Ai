@@ -5,6 +5,7 @@ import FAQ from "@/components/FAQ"
 import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
+import { useSession } from "next-auth/react"
 import {
   Activity,
   ArrowRight,
@@ -18,6 +19,11 @@ import {
   RefreshCw,
   AlertCircle,
   Flame,
+  Wallet,
+  Bell,
+  Brain,
+  LogIn,
+  User,
 } from "lucide-react"
 
 import { buttonVariants } from "@/components/ui/button"
@@ -110,6 +116,7 @@ function getStatusStyle(status: string) {
 }
 
 export default function Home() {
+  const { status } = useSession()
   const [tokens, setTokens] = useState<Token[]>([])
   const [trendingTokens, setTrendingTokens] = useState<TrendingToken[]>([])
   const [globalStats, setGlobalStats] = useState<{ total_scans: number, monthly_scans: number, total_users: number } | null>(null)
@@ -217,12 +224,12 @@ export default function Home() {
               className="text-[17px] md:text-lg text-muted-foreground/80 max-w-2xl mx-auto leading-relaxed animate-fade-up font-medium"
               style={{ animationDelay: "0.2s" }}
             >
-              Analyze both early-stage and established tokens across the Solana blockchain through liquidity, trading activity, holder behavior, volume trends and on-chain signals — giving you the clarity to make confident, data-driven entry decisions.
+              Scan any Solana token instantly — get AI-powered entry scores, real-time holder analytics, creator behavior tracking, and smart alerts. Built for traders who want data, not noise.
             </p>
 
             {/* CTA Buttons */}
             <div
-              className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-up"
+              className="flex flex-col sm:flex-row items-center justify-center gap-3 animate-fade-up"
               style={{ animationDelay: "0.3s" }}
             >
               <Link
@@ -235,14 +242,48 @@ export default function Home() {
                 <Search className="mr-2 h-5 w-5" /> Scan a Token
               </Link>
               <Link
-                href="/leaderboard"
+                href="/portfolio"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
                   "h-12 px-8 border-border/60 hover:bg-accent/50 text-base font-medium"
                 )}
               >
-                View Leaderboard <ArrowRight className="ml-2 h-4 w-4" />
+                <Wallet className="mr-2 h-4 w-4" /> Portfolio
               </Link>
+              <Link
+                href={status === "authenticated" ? "/profile" : "/login"}
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "h-12 px-8 border-border/60 hover:bg-accent/50 text-base font-medium"
+                )}
+              >
+                {status === "authenticated" ? (
+                  <><User className="mr-2 h-4 w-4" /> Profile</>
+                ) : (
+                  <><LogIn className="mr-2 h-4 w-4" /> Login</>
+                )}
+              </Link>
+            </div>
+
+            {/* Feature Pills */}
+            <div
+              className="flex flex-wrap items-center justify-center gap-3 animate-fade-up"
+              style={{ animationDelay: "0.4s" }}
+            >
+              {[
+                { icon: Brain, label: "AI Intelligence Score" },
+                { icon: Shield, label: "Creator Tracking" },
+                { icon: Bell, label: "Smart Alerts" },
+                { icon: Activity, label: "Live Analytics" },
+              ].map(({ icon: Icon, label }) => (
+                <div
+                  key={label}
+                  className="flex items-center gap-2 px-3 py-1.5 rounded-full border border-border/30 bg-card/50 text-xs font-semibold text-muted-foreground"
+                >
+                  <Icon className="h-3.5 w-3.5 text-primary" />
+                  {label}
+                </div>
+              ))}
             </div>
           </div>
 
@@ -273,14 +314,18 @@ export default function Home() {
       <div className="container py-12 space-y-16">
         {/* Feed header with refresh */}
         <div className="flex items-center justify-between animate-fade-up">
-          <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-primary/10">
-              <Image src="/logo.png" alt="" width={24} height={24} className="h-6 w-6" />
+          <div className="flex items-center gap-4">
+            <div className="relative p-2.5 rounded-xl bg-primary/10 border border-primary/20">
+              <Image src="/logo.png" alt="" width={28} height={28} className="h-7 w-7" />
+              <span className="absolute -top-1 -right-1 flex h-3 w-3">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-safe opacity-75" />
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-safe" />
+              </span>
             </div>
             <div>
               <h2 className="text-2xl font-bold tracking-tight">Live Token Feed</h2>
               <p className="text-sm text-muted-foreground">
-                Real-time Solana token data
+                Real-time Solana token intelligence
                 {lastUpdated && (
                   <span className="ml-2 text-xs opacity-60">• Updated {lastUpdated}</span>
                 )}
@@ -290,7 +335,7 @@ export default function Home() {
           <button
             onClick={fetchTokens}
             disabled={isLoading}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-all duration-200 disabled:opacity-50"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-border/40 transition-all duration-200 disabled:opacity-50"
           >
             <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
             Refresh
@@ -330,16 +375,19 @@ export default function Home() {
         {!error && !isLoading && (
           <section className="space-y-6 animate-fade-up">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-warning/10">
+              <div className="p-2.5 rounded-xl bg-warning/10 border border-warning/20">
                 <ShieldAlert className="h-5 w-5 text-warning" />
               </div>
               <div>
-                <h2 className="text-2xl font-bold tracking-tight">Early Stage Tokens</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-2xl font-bold tracking-tight">Early Stage Tokens</h2>
+                  <span className="px-2 py-0.5 rounded-md bg-warning/10 text-warning text-[10px] font-black uppercase tracking-widest">New</span>
+                </div>
                 <p className="text-sm text-muted-foreground">
-                  Newly launched Solana tokens - exercise caution for smart entries
+                  Newly launched Solana tokens on Bags — exercise caution for smart entries
                 </p>
               </div>
-              <span className="ml-auto text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full">
+              <span className="ml-auto text-xs font-bold text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border border-border/30">
                 {preLaunch.length}
               </span>
             </div>
@@ -361,24 +409,27 @@ export default function Home() {
           <section className="space-y-6 animate-fade-up" style={{ animationDelay: "0.1s" }}>
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
               <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-safe/10">
+                <div className="p-2.5 rounded-xl bg-safe/10 border border-safe/20">
                   <TrendingUp className="h-5 w-5 text-safe" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold tracking-tight">Top 10 Trending Tokens In 24h solana from all MCAP</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-2xl font-bold tracking-tight">Trending Solana Tokens</h2>
+                    <span className="px-2 py-0.5 rounded-md bg-safe/10 text-safe text-[10px] font-black uppercase tracking-widest">24h</span>
+                  </div>
                   <p className="text-sm text-muted-foreground">
-                    Top 10 live Solana trending tokens across all market caps, ranked with Birdeye data.
+                    Powered by Birdeye
                   </p>
                 </div>
               </div>
               <div className="ml-auto flex items-center gap-3">
-                <span className="text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full">
+                <span className="text-xs font-bold text-muted-foreground bg-muted/50 px-3 py-1.5 rounded-full border border-border/30">
                   {trendingTokens.length} Trending
                 </span>
                 <button
                   onClick={fetchTokens}
                   disabled={isLoading}
-                  className="flex items-center gap-2 rounded-lg border border-border/40 px-4 py-2 text-sm font-medium text-muted-foreground transition hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
+                  className="flex items-center gap-2 rounded-xl border border-border/40 px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
                 >
                   <RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
                   Refresh
@@ -557,10 +608,12 @@ export default function Home() {
 function TechStack() {
   const logos = [
     { name: "SOLANA", color: "text-primary" },
+    { name: "HELIUS", color: "text-purple-500" },
+    { name: "BIRDEYE", color: "text-amber-500" },
+    { name: "JUPITER", color: "text-teal-400" },
     { name: "DEXSCREENER", color: "text-sky-400" },
     { name: "GROQ", color: "text-orange-500" },
     { name: "SUPABASE", color: "text-emerald-500" },
-    { name: "HELIUS", color: "text-purple-500" },
   ]
 
   // Double the logos for infinite loop
@@ -570,7 +623,7 @@ function TechStack() {
     <section className="py-20 border-t border-border/20 relative overflow-hidden">
       <div className="container px-4 text-center mb-10 space-y-2">
         <h3 className="text-[10px] font-black uppercase tracking-[0.4em] text-muted-foreground/40">Powered By</h3>
-        <p className="text-sm font-bold text-muted-foreground/60">Built with cutting-edge infrastructure</p>
+        <p className="text-sm font-bold text-muted-foreground/60">Built with cutting-edge Solana infrastructure &amp; real-time data providers</p>
       </div>
 
       <div className="relative flex overflow-hidden group">

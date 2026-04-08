@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache"
 import { getServerSession } from "next-auth/next"
 import { authOptions } from "@/lib/auth"
 import { supabase } from "@/lib/supabaseClient"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { updateStreak } from "@/lib/streak-logic"
 import { addLowRiskToken } from "@/lib/lowRiskStore"
 import type { Token } from "@/types/token"
@@ -19,6 +20,8 @@ type DexPair = {
   baseToken?: { name?: string; symbol?: string; address?: string }
   priceUsd?: string
   pairCreatedAt?: number
+  fdv?: number
+  marketCap?: number
   info?: {
     imageUrl?: string
     socials?: { type: string; url: string }[]
@@ -30,7 +33,8 @@ type HolderSnapshot = {
   holdersCount: number | null
   topHolderPct: number | null
   whaleWarning: boolean
-  holderBreakdown: Array<{ rank: number; pct: number }>
+  holderBreakdown: Array<{ rank: number; pct: number; address: string }>
+  isPartialSnapshot: boolean
 }
 
 type HeliusCreatorBehavior = {
@@ -255,7 +259,7 @@ export async function POST(request: Request) {
 
     const holderSnapshot = HELIUS_API_KEY
       ? await fetchHolderSnapshot(address, HELIUS_API_KEY)
-      : { holdersCount: null, topHolderPct: null, whaleWarning: false, holderBreakdown: [] }
+      : { holdersCount: null, topHolderPct: null, whaleWarning: false, holderBreakdown: [], isPartialSnapshot: false }
     const creatorBehavior = HELIUS_API_KEY
       ? await fetchHeliusCreatorBehavior(rawHeliusAsset, HELIUS_API_KEY)
       : { creatorAddress: null, createdTokens: null, source: null }
@@ -263,6 +267,34 @@ export async function POST(request: Request) {
     const topHolderPct = holderSnapshot.topHolderPct
     const whaleWarning = holderSnapshot.whaleWarning
     const holderBreakdown = holderSnapshot.holderBreakdown
+    const isPartialHolderData = holderSnapshot.isPartialSnapshot
+
+    // --- EXTRACT SECURITY & IDENTITY FROM HELIUS ASSET ---
+    const tokenInfo = rawHeliusAsset?.token_info as Record<string, unknown> | undefined
+    const mintAuthority = tokenInfo?.mint_authority as string | null ?? null
+    const freezeAuthority = tokenInfo?.freeze_authority as string | null ?? null
+    const lpBurnStatus = (() => {
+      // If no freeze authority, LP burn is considered strong
+      if (!freezeAuthority) return "strong"
+      return "unknown"
+    })()
+
+    // Identity & Ownership
+    const deployerAddress = creatorBehavior.creatorAddress
+      ?? (rawHeliusAsset?.authorities as { address: string }[] | undefined)?.[0]?.address
+      ?? null
+    const poolAddress = highestPair?.pairAddress ?? null
+    const pairCreatedTimestamp = highestPair?.pairCreatedAt
+      ?? parseTimestamp(bagsToken?.pairCreatedAt || bagsToken?.createdAt || bagsToken?.created_at || bagsToken?.launchTime || bagsToken?.launchedAt || null)
+      ?? null
+
+    // Links & Social
+    const websiteUrl = bagsToken?.website || highestPair?.info?.websites?.[0]?.url || birdeyeToken?.website || null
+    const twitterUrl = bagsToken?.twitter || highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "twitter")?.url || birdeyeToken?.twitter || null
+    const telegramUrl = highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "telegram")?.url || null
+    const quoteToken = highestPair?.baseToken?.address === address ? "Wrapped Sol (SOL)" : null
+    const marketCap = highestPair?.fdv ?? highestPair?.marketCap ?? null
+    const tokenImage = bagsToken?.image || highestPair?.info?.imageUrl || birdeyeToken?.image || null
 
     if (process.env.NODE_ENV === "development") {
       console.log("HOLDER DEBUG:", {
@@ -383,9 +415,6 @@ export async function POST(request: Request) {
       hasLiveMarket: !!highestPair,
     })
 
-    if (riskCapReasons.length > 0) {
-      signals.push(`Score is capped at ${riskCap}/100 because ${riskCapReasons.slice(0, 2).join(" and ")}`)
-    }
     if (qualityScore >= 75) {
       signals.push("Market structure looks strong across depth, distribution, and creator history")
     } else if (qualityScore < 45) {
@@ -428,25 +457,22 @@ export async function POST(request: Request) {
       signals.push("Scan confidence is limited because some data is still missing")
     }
 
-    const confidenceAdjustment = confidenceScore >= 80 ? 4 : confidenceScore >= 60 ? 0 : confidenceScore >= 40 ? -4 : -8
-    const blendedScore = clampScore(weightedAverage([
-      { score: qualityScore, weight: 62 },
-      { score: momentumScore, weight: 38 },
-    ]) + confidenceAdjustment)
-    const score = Math.min(blendedScore, riskCap)
+    // Intelligence Score = average of the 4 core parameters
+    const score = clampScore(Math.round((qualityScore + momentumScore + confidenceScore + riskCap) / 4))
 
     let confidence = "LOW"
     if (confidenceScore >= 75) confidence = "HIGH"
     else if (confidenceScore >= 50) confidence = "MEDIUM"
 
     let label = "WATCH SIGNAL"
-    if (score >= 82 && riskCap >= 82 && confidence === "HIGH") label = "STRONG OPPORTUNITY"
-    else if (score >= 65) label = "GOOD ENTRY"
-    else if (score < 45) label = "WEAK ENTRY"
+    if (score >= 75 && confidence === "HIGH") label = "STRONG OPPORTUNITY"
+    else if (score >= 60) label = "GOOD ENTRY"
+    else if (score < 40) label = "WEAK ENTRY"
 
     const explanation = buildReadableSummary({
       label,
       confidence,
+      score,
       qualityScore,
       momentumScore,
       confidenceScore,
@@ -457,9 +483,13 @@ export async function POST(request: Request) {
       holders,
       topHolderPct,
       holderBreakdown,
+      creator_tokens,
       ageHours,
       status,
       metadataCompleteness,
+      volumeLiquidityRatio,
+      isPartialHolderData: isPartialHolderData,
+      tokenAddress: address,
     })
 
     // --- OPPORTUNITY SIGNAL CAPTURE (High-Fidelity Metadata Filter) ---
@@ -500,26 +530,19 @@ export async function POST(request: Request) {
     const tokenName = bagsToken?.name || dexTokenName || bagsToken?.symbol || "Unknown Token"
     const tokenSymbol = bagsToken?.symbol || dexTokenSymbol || "???"
 
-    // We run this without awaiting the final UI response to ensure speed
-    // Insert Scan for ALL users (logged-in or anonymous)
-    supabase.from("scans").insert({
+    const { error: scanPersistError } = await supabaseAdmin.from("scans").insert({
       user_id: session?.user?.id || null, // Nullable for anonymous users
       token_name: tokenName,
-      token_address: address,
-      token_symbol: tokenSymbol,
       risk_level: label,
       score: score,
-      confidence: confidence,
-      signals: signals,
-      liquidity: liquidity,
-      volume: volume,
-      holders: holders,
-    }).then(({ error }) => {
-      // Only update streaks for logged-in users
-      if (!error && session?.user?.id) {
-        updateStreak(session.user.id, score, tokenName).then(() => revalidatePath("/profile"))
-      }
     })
+
+    if (scanPersistError) {
+      console.error("[api/scan] Failed to persist scan:", scanPersistError)
+    } else if (session?.user?.id) {
+      await updateStreak(session.user.id, score, tokenName)
+      revalidatePath("/profile")
+    }
 
     // --- CLEAN TOKEN-ONLY RESPONSE ---
     const scanResponse = {
@@ -541,6 +564,29 @@ export async function POST(request: Request) {
         topHolderLabel: getTopHolderLabel(holders, holderBreakdown.length),
         holderBreakdown: holderBreakdown,
         ageHours: ageHours,
+        isPartialHolderData: isPartialHolderData,
+        security: {
+          mintAuthorityDisabled: !mintAuthority,
+          freezeAuthorityDisabled: !freezeAuthority,
+          lpBurnProfile: lpBurnStatus,
+        },
+        identity: {
+          tokenMint: address,
+          poolAddress: poolAddress,
+          deployer: deployerAddress,
+          owner: deployerAddress,
+          createdAt: pairCreatedTimestamp ? new Date(pairCreatedTimestamp).toISOString() : null,
+        },
+        social: {
+          website: websiteUrl,
+          twitter: twitterUrl,
+          telegram: telegramUrl,
+          quoteToken: quoteToken,
+          status: status,
+        },
+        tokenSymbol: bagsToken?.symbol || dexTokenSymbol || "???",
+        marketCap: marketCap,
+        tokenImage: tokenImage,
         scoring: {
           quality: qualityScore,
           momentum: momentumScore,
@@ -890,6 +936,7 @@ function getOwnershipSignal(
 function buildReadableSummary(input: {
   label: string
   confidence: string
+  score: number
   qualityScore: number
   momentumScore: number
   confidenceScore: number
@@ -900,53 +947,94 @@ function buildReadableSummary(input: {
   holders: number | null
   topHolderPct: number | null
   holderBreakdown: Array<{ rank: number; pct: number }>
+  creator_tokens: number | null
   ageHours: number | null
   status: string
   metadataCompleteness: number
+  volumeLiquidityRatio: number | null
+  isPartialHolderData?: boolean
+  tokenAddress?: string
 }) {
+  const lines: string[] = []
+
+  // Verdict
   const verdict = input.label === "STRONG OPPORTUNITY"
-    ? "This setup looks strong right now"
+    ? "This setup looks strong right now."
     : input.label === "GOOD ENTRY"
-      ? "This setup looks constructive"
+      ? "This setup looks constructive."
       : input.label === "WEAK ENTRY"
-        ? "This setup still looks weak"
-        : "This setup is still a watchlist candidate"
+        ? "This setup still looks weak."
+        : "This setup is still a watchlist candidate."
+  lines.push(verdict)
 
-  const structure = input.qualityScore >= 70
-    ? "Market structure is solid"
-    : input.qualityScore >= 50
-      ? "Market structure is mixed"
-      : "Market structure is still fragile"
+  // Quality explanation
+  const qualityParts: string[] = []
+  if (input.liquidity !== null && input.liquidity > 0) {
+    qualityParts.push(input.liquidity >= 5000 ? `liquidity is strong at $${input.liquidity.toLocaleString()}` : input.liquidity >= 1000 ? `liquidity is moderate at $${input.liquidity.toLocaleString()}` : `liquidity is thin at $${input.liquidity.toLocaleString()}`)
+  } else {
+    qualityParts.push("liquidity data is unavailable")
+  }
+  if (input.holders !== null && input.holders > 0) {
+    qualityParts.push(input.holders >= 200 ? `holder base is healthy (${input.holders.toLocaleString()})` : input.holders >= 50 ? `holder base is growing (${input.holders.toLocaleString()})` : `holder count is low (${input.holders})`)
+  }
+  if (input.topHolderPct !== null) {
+    qualityParts.push(input.topHolderPct <= 40 ? `wallet distribution is well spread (top 10 hold ${input.topHolderPct}%)` : input.topHolderPct <= 55 ? `wallet concentration is moderate (top 10 hold ${input.topHolderPct}%)` : `wallet concentration is high (top 10 hold ${input.topHolderPct}%)`)
+  }
+  if (input.creator_tokens !== null) {
+    qualityParts.push(input.creator_tokens <= 1 ? "creator is on their first token" : input.creator_tokens <= 5 ? `creator has launched ${input.creator_tokens} tokens` : `creator has a heavy relaunch history (${input.creator_tokens} tokens)`)
+  }
+  lines.push(`Quality ${input.qualityScore}/100 — ${qualityParts.join(", ")}.`)
 
-  const momentum = input.momentumScore >= 70
-    ? "trading activity is healthy"
-    : input.momentumScore >= 50
-      ? "trading activity is moderate"
-      : "trading activity is still light"
+  // Momentum explanation
+  const momParts: string[] = []
+  if (input.volume !== null && input.volume > 0) {
+    momParts.push(input.volume >= 5000 ? `24h volume is strong at $${input.volume.toLocaleString()}` : input.volume >= 1000 ? `24h volume is moderate at $${input.volume.toLocaleString()}` : `24h volume is light at $${input.volume.toLocaleString()}`)
+  } else {
+    momParts.push("volume data is unavailable")
+  }
+  if (input.volumeLiquidityRatio !== null) {
+    momParts.push(input.volumeLiquidityRatio >= 0.5 && input.volumeLiquidityRatio <= 2 ? "volume-to-liquidity ratio is healthy" : input.volumeLiquidityRatio > 3 ? "volume-to-liquidity ratio looks overheated" : "volume-to-liquidity ratio is low")
+  }
+  if (input.status === "graduated") {
+    momParts.push("token has graduated to open market")
+  } else if (input.status === "pre-graduation") {
+    momParts.push("token is still in pre-graduation phase")
+  }
+  lines.push(`Momentum ${input.momentumScore}/100 — ${momParts.join(", ")}.`)
 
-  const ownership = input.holders !== null && input.holders <= 10
-    ? `${input.holders} wallets currently control ${input.topHolderPct ?? "N/A"}% of supply`
-    : input.topHolderPct !== null
-      ? `top wallet concentration sits at ${input.topHolderPct}% across the top 10 wallets`
-      : "holder concentration is still being evaluated"
+  // Confidence explanation
+  const confParts: string[] = []
+  confParts.push(`data confidence is ${input.confidence.toLowerCase()}`)
+  if (input.metadataCompleteness >= 3) {
+    confParts.push("project metadata is well populated")
+  } else if (input.metadataCompleteness === 0) {
+    confParts.push("project metadata is very limited")
+  } else {
+    confParts.push("project metadata is partially filled")
+  }
+  lines.push(`Confidence ${input.confidenceScore}/100 — ${confParts.join(", ")}.`)
 
-  const maturity = input.ageHours !== null
-    ? `The token is about ${formatAge(input.ageHours)} old`
-    : input.status === "pre-graduation"
-      ? "The token is still in an early discovery phase"
-      : "Token age is still being evaluated"
+  // Risk Cap explanation
+  if (input.riskCapReasons.length > 0) {
+    lines.push(`Risk Cap ${input.riskCap}/100 — ${input.riskCapReasons.join(", ")}.`)
+  } else {
+    lines.push(`Risk Cap ${input.riskCap}/100 — no major risk flags detected.`)
+  }
 
-  const capLine = input.riskCap < 100 && input.riskCapReasons.length > 0
-    ? `The score is capped at ${input.riskCap}/100 mainly because ${input.riskCapReasons[0]}.`
-    : `Confidence is ${input.confidence.toLowerCase()} with a data quality score of ${input.confidenceScore}/100.`
+  // Age context
+  if (input.ageHours !== null) {
+    lines.push(input.ageHours < 6 ? `Token is very new (${formatAge(input.ageHours)} old).` : `Token has been live for ${formatAge(input.ageHours)}.`)
+  }
 
-  const metadataLine = input.metadataCompleteness >= 3
-    ? "Public project details are present across multiple sources."
-    : input.metadataCompleteness === 0
-      ? "Public project details are still very limited."
-      : "Public project details are only partially filled out."
+  // Intelligence formula
+  // Partial holder data warning
+  if (input.isPartialHolderData && input.tokenAddress) {
+    lines.push(`Note: Holder data is approximate (>1,000 holders). Helius API cannot fully snapshot large holder sets. For accurate holder data, visit https://birdeye.so/token/${input.tokenAddress}?chain=solana`)
+  }
 
-  return `${verdict}. ${structure} and ${momentum}. ${ownership}. ${maturity}. ${metadataLine} ${capLine} DYOR.`
+  lines.push(`Intelligence Score ${input.score}/100 = avg of Quality (${input.qualityScore}) + Momentum (${input.momentumScore}) + Confidence (${input.confidenceScore}) + Risk Cap (${input.riskCap}). DYOR.`)
+
+  return lines.join("\n")
 }
 
 async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promise<HolderSnapshot> {
@@ -1034,6 +1122,7 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
         topHolderPct: null,
         whaleWarning: false,
         holderBreakdown: [],
+        isPartialSnapshot: false,
       }
     }
 
@@ -1044,11 +1133,13 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
     }
 
     if (!snapshotComplete) {
+      // Return partial data with caution flag instead of empty
       return {
-        holdersCount: null,
+        holdersCount: expectedTotalAccounts ?? ownerBalances.size,
         topHolderPct: null,
         whaleWarning: false,
         holderBreakdown: [],
+        isPartialSnapshot: true,
       }
     }
 
@@ -1060,13 +1151,16 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
         topHolderPct: null,
         whaleWarning: false,
         holderBreakdown: [],
+        isPartialSnapshot: false,
       }
     }
 
-    const breakdownCount = Math.min(sortedBalances.length, 10)
-    const holderBreakdown = sortedBalances.slice(0, breakdownCount).map((amount, index) => ({
+    const sortedEntries = Array.from(ownerBalances.entries()).sort((a, b) => b[1] - a[1])
+    const breakdownCount = Math.min(sortedEntries.length, 10)
+    const holderBreakdown = sortedEntries.slice(0, breakdownCount).map(([addr, amount], index) => ({
       rank: index + 1,
       pct: roundPct((amount / totalSupply) * 100),
+      address: addr,
     }))
     const topSliceSum = sortedBalances.slice(0, breakdownCount).reduce((sum, amount) => sum + amount, 0)
     const topHolderPct = roundPct((topSliceSum / totalSupply) * 100)
@@ -1076,6 +1170,7 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
       topHolderPct,
       whaleWarning: topHolderPct > 50,
       holderBreakdown,
+      isPartialSnapshot: false,
     }
   } catch (error) {
     console.warn("[SCAN_ENGINE] Helius holder snapshot error:", error)
@@ -1084,6 +1179,7 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
       topHolderPct: null,
       whaleWarning: false,
       holderBreakdown: [],
+      isPartialSnapshot: false,
     }
   }
 }

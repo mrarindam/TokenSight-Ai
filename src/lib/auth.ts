@@ -2,7 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import GitHubProvider from "next-auth/providers/github"
 import CredentialsProvider from "next-auth/providers/credentials"
-import { supabase } from "./supabaseClient"
+import { supabaseAdmin } from "./supabaseAdmin"
 
 // Extend NextAuth Session typings to include our tracked Supabase UUID natively
 declare module "next-auth" {
@@ -29,7 +29,7 @@ export async function getOrCreateUser(userData: {
 
   try {
     // 1. Check for existing record
-    let query = supabase.from("users").select("*");
+    let query = supabaseAdmin.from("users").select("*");
     if (wallet) {
       query = query.eq("wallet", wallet);
     } else if (email) {
@@ -52,7 +52,7 @@ export async function getOrCreateUser(userData: {
       ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
       : (name || email?.split("@")[0] || "Trader");
 
-    const { data: newUser, error: createErr } = await supabase
+    const { data: newUser, error: createErr } = await supabaseAdmin
       .from("users")
       .insert({
         email: wallet ? null : email,
@@ -72,7 +72,7 @@ export async function getOrCreateUser(userData: {
     }
 
     // 3. Initialize default analytics row
-    const { error: statsErr } = await supabase.from("user_stats").insert({
+    const { error: statsErr } = await supabaseAdmin.from("user_stats").insert({
       user_id: newUser.id,
       total_scans: 0,
       detection_rate: 0,
@@ -146,7 +146,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         // Fetch wallet from DB for every session refresh
         try {
-          const { data } = await supabase
+          const { data } = await supabaseAdmin
             .from("users")
             .select("wallet")
             .eq("id", token.id)
