@@ -3,17 +3,43 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import { usePrivy } from "@privy-io/react-auth"
 import { useRouter } from "next/navigation"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
 
 export default function LoginPage() {
   const router = useRouter()
   const { login, ready, authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [statusText, setStatusText] = useState("Waiting for Privy...")
   const hasOpenedModal = useRef(false)
+
+  const syncUserAndRedirect = useCallback(async () => {
+    setStatusText("Finalizing your account...")
+
+    for (let attempt = 0; attempt < 8; attempt += 1) {
+      try {
+        const response = await authFetch("/api/user/me", { cache: "no-store" })
+
+        if (response.ok) {
+          router.replace("/profile")
+          return
+        }
+      } catch {
+        // Retry while Privy finishes session setup.
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 400))
+    }
+
+    setStatusText("Signed in. If the modal closed, tap below to continue.")
+    setIsSubmitting(false)
+  }, [authFetch, router])
 
   const handleLogin = useCallback(async () => {
     setIsSubmitting(true)
+    setStatusText("Launching Privy...")
 
     try {
       await login()
@@ -24,9 +50,9 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (ready && authenticated) {
-      router.replace("/profile")
+      void syncUserAndRedirect()
     }
-  }, [authenticated, ready, router])
+  }, [authenticated, ready, syncUserAndRedirect])
 
   useEffect(() => {
     if (!ready || authenticated || hasOpenedModal.current) {
@@ -56,7 +82,7 @@ export default function LoginPage() {
 
         <div className="flex items-center gap-2 text-sm text-white/70">
           <Loader2 className="h-4 w-4 animate-spin" />
-          {isSubmitting ? "Launching Privy..." : "Waiting for Privy..."}
+          {isSubmitting ? "Launching Privy..." : statusText}
         </div>
 
         <button

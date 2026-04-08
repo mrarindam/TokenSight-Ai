@@ -1,6 +1,21 @@
 import { supabaseAdmin } from "./supabaseAdmin"
 import { verifyPrivyToken, verifyPrivyTokenString, privyClient } from "./privy"
 
+type PrivyLinkedAccount = {
+  type?: string;
+  address?: string | null;
+  email?: string | null;
+  username?: string | null;
+  name?: string | null;
+};
+
+type PrivyResolvedIdentity = {
+  email: string | null;
+  name: string | null;
+  wallet: string | null;
+  twitterHandle: string | null;
+};
+
 function isMissingColumnError(error: unknown, columnName: string) {
   if (!error || typeof error !== "object") return false;
 
@@ -23,6 +38,46 @@ function isMissingColumnError(error: unknown, columnName: string) {
   );
 }
 
+function resolvePrivyIdentity(privyUser: {
+  email?: { address?: string | null };
+  wallet?: { address?: string | null };
+  google?: { email?: string | null; name?: string | null };
+  github?: { email?: string | null; username?: string | null; name?: string | null };
+  twitter?: { username?: string | null; name?: string | null };
+  linkedAccounts?: PrivyLinkedAccount[];
+}): PrivyResolvedIdentity {
+  let email = privyUser.email?.address || privyUser.google?.email || privyUser.github?.email || null;
+  let wallet = privyUser.wallet?.address || null;
+  let twitterHandle = privyUser.twitter?.username || null;
+  let name =
+    privyUser.google?.name ||
+    privyUser.github?.name ||
+    privyUser.github?.username ||
+    privyUser.twitter?.name ||
+    twitterHandle ||
+    null;
+
+  for (const account of privyUser.linkedAccounts || []) {
+    if (!wallet && account.type === "wallet" && account.address) {
+      wallet = account.address;
+    }
+
+    if (!email && ["email", "google_oauth", "github_oauth", "apple_oauth", "linkedin_oauth", "discord_oauth"].includes(account.type || "") && account.email) {
+      email = account.email;
+    }
+
+    if (!twitterHandle && account.type === "twitter_oauth" && account.username) {
+      twitterHandle = account.username;
+    }
+
+    if (!name && account.name) {
+      name = account.name;
+    }
+  }
+
+  return { email, name, wallet, twitterHandle };
+}
+
 /**
  * HELPER: Synchronize Privy user identity with Supabase native storage.
  * Maps Privy login methods (email, wallet, twitter, etc.) to our users table.
@@ -36,7 +91,7 @@ export async function getOrCreateUser(userData: {
   const { email, name, wallet, twitterHandle } = userData;
 
   try {
-    // 1. Check for existing record — try wallet first, then email
+    // 1. Check for existing record — try wallet first, then email, then X handle
     let existingUser = null;
 
     if (wallet) {
@@ -49,22 +104,49 @@ export async function getOrCreateUser(userData: {
       existingUser = data;
     }
 
+    if (!existingUser && twitterHandle) {
+      const { data } = await supabaseAdmin.from("users").select("*").eq("twitter_handle", twitterHandle).single();
+      existingUser = data;
+    }
+
     if (existingUser) {
-      // Update twitter handle if newly available
+      const patch: { email?: string; wallet?: string; twitter_handle?: string; username?: string } = {};
+
+      if (email && !existingUser.email) {
+        patch.email = email;
+      }
+
+      if (wallet && !existingUser.wallet) {
+        patch.wallet = wallet;
+      }
+
       if (twitterHandle && !existingUser.twitter_handle) {
+        patch.twitter_handle = twitterHandle;
+      }
+
+      if (!existingUser.username && (name || twitterHandle || email || wallet)) {
+        patch.username = wallet
+          ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
+          : twitterHandle
+            ? `@${twitterHandle}`
+            : (name || email?.split("@")[0] || "Trader");
+      }
+
+      if (Object.keys(patch).length > 0) {
         const { error: updateErr } = await supabaseAdmin
           .from("users")
-          .update({ twitter_handle: twitterHandle })
+          .update(patch)
           .eq("id", existingUser.id);
 
         if (updateErr && !isMissingColumnError(updateErr, "twitter_handle")) {
-          console.error("[AUTH] Failed to update twitter handle:", updateErr);
+          console.error("[AUTH] Failed to update existing user:", updateErr);
         }
       }
+
       return existingUser;
     }
 
-    if (!wallet && !email) return null;
+    if (!wallet && !email && !twitterHandle) return null;
 
     // 2. Create new record if not found
     const username = wallet
@@ -138,10 +220,7 @@ export async function getAuthUser(req: Request) {
   try {
     const privyUser = await privyClient.getUser(claims.userId);
 
-    const email = privyUser.email?.address || null;
-    const wallet = privyUser.wallet?.address || null;
-    const twitterHandle = privyUser.twitter?.username || null;
-    const name = privyUser.google?.name || privyUser.github?.username || twitterHandle || null;
+    const { email, name, wallet, twitterHandle } = resolvePrivyIdentity(privyUser);
 
     const dbUser = await getOrCreateUser({ email, name, wallet, twitterHandle });
     return dbUser;
@@ -159,19 +238,23 @@ export async function getAuthUserFromCookies() {
   // Dynamic import to avoid bundling next/headers in client components
   const { cookies } = await import("next/headers");
   const cookieStore = await cookies();
-  const token = cookieStore.get("privy-token")?.value;
-  if (!token) return null;
+  const idToken = cookieStore.get("privy-id-token")?.value;
+  const accessToken = cookieStore.get("privy-token")?.value;
 
-  const claims = await verifyPrivyTokenString(token);
-  if (!claims) return null;
+  if (!idToken && !accessToken) return null;
 
   try {
-    const privyUser = await privyClient.getUser(claims.userId);
+    let privyUser;
 
-    const email = privyUser.email?.address || null;
-    const wallet = privyUser.wallet?.address || null;
-    const twitterHandle = privyUser.twitter?.username || null;
-    const name = privyUser.google?.name || privyUser.github?.username || twitterHandle || null;
+    if (idToken) {
+      privyUser = await privyClient.getUser({ idToken });
+    } else {
+      const claims = await verifyPrivyTokenString(accessToken!);
+      if (!claims?.userId) return null;
+      privyUser = await privyClient.getUser(claims.userId);
+    }
+
+    const { email, name, wallet, twitterHandle } = resolvePrivyIdentity(privyUser);
 
     return await getOrCreateUser({ email, name, wallet, twitterHandle });
   } catch (err) {
