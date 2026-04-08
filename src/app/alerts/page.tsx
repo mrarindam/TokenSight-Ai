@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { cn, fetchTokenPrice, isValidSolanaAddress } from "@/lib/utils"
 import type { PriceAlertRecord } from "@/types/app"
-import { Bell, Zap, Trash2, RefreshCw, TrendingDown, TrendingUp, Activity } from "lucide-react"
+import { Bell, Zap, Trash2, RefreshCw, TrendingDown, TrendingUp, Activity, LogIn } from "lucide-react"
+import Link from "next/link"
 
 const DEFAULT_API = "/api/alerts"
 
@@ -156,9 +157,20 @@ export default function AlertsPage() {
 
   if (status !== "authenticated") {
     return (
-      <div className="container py-16 text-center">
-        <h1 className="text-3xl font-bold">Alerts</h1>
-        <p className="mt-4 text-sm text-muted-foreground">Log in to create token alerts and monitor score or price changes.</p>
+      <div className="container max-w-lg py-24 text-center space-y-6">
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+          <Bell className="h-8 w-8 text-amber-400" />
+        </div>
+        <h1 className="text-3xl font-black tracking-tight">Alerts</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">Log in to create token alerts and monitor score or price changes.</p>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+        >
+          <LogIn className="h-4 w-4" />
+          Sign in to continue
+        </Link>
+        <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
       </div>
     )
   }

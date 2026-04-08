@@ -19,6 +19,8 @@ import {
   RefreshCw,
   AlertCircle,
   Flame,
+  ChevronLeft,
+  ChevronRight,
   Wallet,
   Bell,
   Brain,
@@ -77,7 +79,7 @@ function CountUpNumber({ value, suffix = "", prefix = "", showK = true }: { valu
 }
 
 // Max tokens per section
-const FEED_LIMIT = 30
+const FEED_LIMIT = 50
 
 // ===== Status color helpers =====
 function getStatusStyle(status: string) {
@@ -393,11 +395,7 @@ export default function Home() {
             </div>
 
             {preLaunch.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 stagger-children">
-                {preLaunch.map((token) => (
-                  <TokenCard key={token.id} token={token} />
-                ))}
-              </div>
+              <TokenSlider tokens={preLaunch} />
             ) : (
               <EmptySection message="No newly launched tokens found right now" />
             )}
@@ -418,7 +416,7 @@ export default function Home() {
                     <span className="px-2 py-0.5 rounded-md bg-safe/10 text-safe text-[10px] font-black uppercase tracking-widest">24h</span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    Powered by Birdeye
+                    Top 10 trending tokens in 24hon Solana by MCAP, volume, liquidity and social buzz - updated in real-time
                   </p>
                 </div>
               </div>
@@ -673,6 +671,88 @@ function TechStack() {
 }
 
 // ===== Token Card Component =====
+// ===== Token Slider / Carousel =====
+function TokenSlider({ tokens }: { tokens: Token[] }) {
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current
+    if (!el) return
+    setCanScrollLeft(el.scrollLeft > 0)
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+  }, [])
+
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+    checkScroll()
+    el.addEventListener("scroll", checkScroll, { passive: true })
+    window.addEventListener("resize", checkScroll)
+    return () => {
+      el.removeEventListener("scroll", checkScroll)
+      window.removeEventListener("resize", checkScroll)
+    }
+  }, [checkScroll, tokens.length])
+
+  const scroll = (direction: "left" | "right") => {
+    const el = scrollRef.current
+    if (!el) return
+    const cardWidth = el.querySelector<HTMLElement>(":scope > div")?.offsetWidth || 320
+    const isMobile = window.innerWidth < 768
+    const scrollAmount = cardWidth * (isMobile ? 1 : 3) + (isMobile ? 16 : 48)
+    el.scrollBy({ left: direction === "left" ? -scrollAmount : scrollAmount, behavior: "smooth" })
+  }
+
+  return (
+    <div className="relative group/slider">
+      {/* Left Arrow */}
+      {canScrollLeft && (
+        <button
+          onClick={() => scroll("left")}
+          className="absolute left-0 md:-left-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 md:w-10 md:h-10 rounded-full bg-background/95 border border-border/50 shadow-lg flex items-center justify-center text-foreground hover:bg-accent transition-colors backdrop-blur-sm"
+          aria-label="Scroll left"
+        >
+          <ChevronLeft className="h-4 w-4 md:h-5 md:w-5" />
+        </button>
+      )}
+
+      {/* Right Arrow */}
+      {canScrollRight && (
+        <button
+          onClick={() => scroll("right")}
+          className="absolute right-0 md:-right-3 top-1/2 -translate-y-1/2 z-20 w-8 h-8 md:w-10 md:h-10 rounded-full bg-background/95 border border-border/50 shadow-lg flex items-center justify-center text-foreground hover:bg-accent transition-colors backdrop-blur-sm"
+          aria-label="Scroll right"
+        >
+          <ChevronRight className="h-4 w-4 md:h-5 md:w-5" />
+        </button>
+      )}
+
+      {/* Left fade */}
+      {canScrollLeft && (
+        <div className="absolute left-0 top-0 bottom-0 w-12 bg-gradient-to-r from-background to-transparent z-10 pointer-events-none" />
+      )}
+      {/* Right fade */}
+      {canScrollRight && (
+        <div className="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-l from-background to-transparent z-10 pointer-events-none" />
+      )}
+
+      <div
+        ref={scrollRef}
+        className="flex gap-4 overflow-x-auto scrollbar-hide scroll-smooth pb-2"
+        style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
+      >
+        {tokens.map((token) => (
+          <div key={token.id} className="flex-shrink-0 w-[280px] md:w-[320px] h-full">
+            <TokenCard token={token} />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function TokenCard({ token }: { token: Token }) {
   const [copied, setCopied] = useState(false)
   const style = getStatusStyle(token.status)
@@ -689,7 +769,7 @@ function TokenCard({ token }: { token: Token }) {
   return (
     <Card
       className={cn(
-        "relative overflow-hidden border-border/40 bg-card/40 backdrop-blur-md flex flex-col justify-between group transition-all duration-500",
+        "relative overflow-hidden border-border/40 bg-card/40 backdrop-blur-md flex flex-col group transition-all duration-500 h-full",
         "hover-lift-premium border-glow-hover",
         token.status === 'pre-graduation' ? "hover:border-warning/40 shadow-warning/5" : "hover:border-safe/40 shadow-safe/5",
         "noise-overlay"
@@ -751,12 +831,10 @@ function TokenCard({ token }: { token: Token }) {
         </div>
       </CardHeader>
 
-      <CardContent className="pb-4 relative z-10 flex-1 flex flex-col justify-between">
-        {token.description && (
-          <p className="text-xs text-muted-foreground/80 line-clamp-2 mb-4 leading-relaxed font-medium">
-            {token.description}
-          </p>
-        )}
+      <CardContent className="pb-4 relative z-10 flex-1 flex flex-col">
+        <p className="text-xs text-muted-foreground/80 line-clamp-2 mb-4 leading-relaxed font-medium min-h-[2.5rem]">
+          {token.description || "\u00A0"}
+        </p>
 
         <div
           onClick={handleCopy}
@@ -783,22 +861,20 @@ function TokenCard({ token }: { token: Token }) {
         </div>
 
         {/* Social Links — Premium Pill Style */}
-        {(token.twitter || token.website) && (
-          <div className="flex items-center gap-2 mt-4 pt-4 border-t border-border/10">
-            {token.twitter && (
-              <a href={token.twitter} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-sky-400 transition-colors bg-muted/10 px-2.5 py-1.5 rounded-full border border-border/30">
-                <ExternalLink className="h-2.5 w-2.5" /> Twitter
-              </a>
-            )}
-            {token.website && (
-              <a href={token.website} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-primary transition-colors bg-muted/10 px-2.5 py-1.5 rounded-full border border-border/30">
-                <ExternalLink className="h-2.5 w-2.5" /> Web
-              </a>
-            )}
-          </div>
-        )}
+        <div className="flex items-center gap-2 mt-auto pt-4 border-t border-border/10 min-h-[2.5rem]">
+          {token.twitter && (
+            <a href={token.twitter} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-sky-400 transition-colors bg-muted/10 px-2.5 py-1.5 rounded-full border border-border/30">
+              <ExternalLink className="h-2.5 w-2.5" /> Twitter
+            </a>
+          )}
+          {token.website && (
+            <a href={token.website} target="_blank" rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-primary transition-colors bg-muted/10 px-2.5 py-1.5 rounded-full border border-border/30">
+              <ExternalLink className="h-2.5 w-2.5" /> Web
+            </a>
+          )}
+        </div>
       </CardContent>
 
       <CardFooter className="pt-0 relative z-10">

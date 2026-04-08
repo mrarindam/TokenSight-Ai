@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { cn, fetchTokenPrice, isValidSolanaAddress } from "@/lib/utils"
 import type { PortfolioRecord } from "@/types/app"
-import { Wallet, TrendingUp, TrendingDown, DollarSign, BarChart3, RefreshCw, Pencil, Trash2, Plus } from "lucide-react"
+import { Wallet, TrendingUp, TrendingDown, DollarSign, BarChart3, RefreshCw, Pencil, Trash2, Plus, LogIn } from "lucide-react"
+import Link from "next/link"
 
 const DEFAULT_API = "/api/portfolio"
 
@@ -164,9 +165,20 @@ export default function PortfolioPage() {
 
   if (status !== "authenticated") {
     return (
-      <div className="container py-16 text-center">
-        <h1 className="text-3xl font-bold">Portfolio</h1>
-        <p className="mt-4 text-sm text-muted-foreground">Log in to track holdings, entry price, and ROI for scanned tokens.</p>
+      <div className="container max-w-lg py-24 text-center space-y-6">
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+          <Wallet className="h-8 w-8 text-emerald-400" />
+        </div>
+        <h1 className="text-3xl font-black tracking-tight">Portfolio</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">Log in to track holdings, entry price, and ROI for scanned tokens.</p>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+        >
+          <LogIn className="h-4 w-4" />
+          Sign in to continue
+        </Link>
+        <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
       </div>
     )
   }

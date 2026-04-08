@@ -41,10 +41,15 @@ function buildValidScanDays(scans: UserScanRow[]): Set<string> {
 }
 
 export async function getUserActiveStreak(userId: string, now = new Date()): Promise<number> {
+  // Only fetch scans from the last 365 days — streak can't exceed that
+  const cutoff = new Date(now);
+  cutoff.setUTCDate(cutoff.getUTCDate() - 365);
+
   const { data, error } = await supabaseAdmin
     .from("scans")
     .select("token_name, created_at")
     .eq("user_id", userId)
+    .gte("created_at", cutoff.toISOString())
     .order("created_at", { ascending: true });
 
   if (error) throw error;

@@ -112,6 +112,13 @@
   .glass-strong {
     @apply bg-card/80 backdrop-blur-2xl border border-border/40;
   }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
 }
 
 /* Light mode: add subtle shadows instead of relying on borders */

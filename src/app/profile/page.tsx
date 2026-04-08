@@ -22,70 +22,82 @@ export default async function ProfilePage() {
     redirect("/login")
   }
 
-  // 1. Fetch User Profile Data
-  const { data: dbUser } = await supabaseAdmin
-    .from("users")
-    .select("*")
-    .eq("id", session.user.id)
-    .maybeSingle()
+  // Run all independent queries in parallel
+  const [
+    { data: dbUser },
+    { data: stats },
+    leaderboardEntries,
+    activeStreak,
+    { data: lastScanData },
+    { count: totalScansCount },
+    { count: highConvictionCount },
+    { data: bestScanData },
+    { count: weeklyCount },
+  ] = await Promise.all([
+    // 1. User Profile
+    supabaseAdmin
+      .from("users")
+      .select("*")
+      .eq("id", session.user.id)
+      .maybeSingle(),
 
-  // 2. Fetch User Stats
-  const { data: stats } = await supabaseAdmin
-    .from("user_stats")
-    .select("*")
-    .eq("user_id", session.user.id)
-    .single()
+    // 2. User Stats
+    supabaseAdmin
+      .from("user_stats")
+      .select("*")
+      .eq("user_id", session.user.id)
+      .single(),
 
-  const leaderboardEntries = await getLeaderboardEntries()
+    // 3. Leaderboard
+    getLeaderboardEntries(),
+
+    // 4. Active Streak
+    getUserActiveStreak(session.user.id),
+
+    // 5. Last Scan
+    supabaseAdmin
+      .from("scans")
+      .select("created_at")
+      .eq("user_id", session.user.id)
+      .order("created_at", { ascending: false })
+      .limit(1),
+
+    // 6. Total Scans
+    supabaseAdmin
+      .from("scans")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", session.user.id),
+
+    // 7. High Conviction Hits
+    supabaseAdmin
+      .from("scans")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", session.user.id)
+      .gt("score", 70),
+
+    // 8. Best Scan
+    supabaseAdmin
+      .from("scans")
+      .select("token_name, score")
+      .eq("user_id", session.user.id)
+      .order("score", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+
+    // 9. Weekly Scans
+    supabaseAdmin
+      .from("scans")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", session.user.id)
+      .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
+  ])
+
   const currentRank = leaderboardEntries.find((entry) => entry.user_id === session.user.id)?.rank || "..."
-  const activeStreak = await getUserActiveStreak(session.user.id)
-
-  // 4. FETCH LAST SCAN
-  const { data: lastScanData } = await supabaseAdmin
-    .from("scans")
-    .select("created_at")
-    .eq("user_id", session.user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
 
   const lastScan = lastScanData || []
-
-  // 5. FETCH TOTAL SCANS (Lifetime) - Single source of truth from scans table
-  const { count: totalScansCount } = await supabaseAdmin
-    .from("scans")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", session.user.id)
-
   const totalScans = totalScansCount || 0
-
-  // 6. FETCH HIGH CONVICTION HITS (Score > 70)
-  const { count: highConvictionCount } = await supabaseAdmin
-    .from("scans")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", session.user.id)
-    .gt("score", 70)
-
   const highConvictionHits = highConvictionCount || 0
-
-  // 7. FETCH BEST SCAN (Highest Score)
-  const { data: bestScanData } = await supabaseAdmin
-    .from("scans")
-    .select("token_name, score")
-    .eq("user_id", session.user.id)
-    .order("score", { ascending: false })
-    .limit(1)
-    .maybeSingle()
-
   const bestScan = (bestScanData as { token_name: string; score: number } | null) || null
-
-  // 8. FETCH WEEKLY SCANS (Last 7 Days)
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
-  const { count: weeklyCount } = await supabaseAdmin
-    .from("scans")
-    .select("*", { count: "exact", head: true })
-    .eq("user_id", session.user.id)
-    .gte("created_at", sevenDaysAgo)
-
   const weeklyScans = weeklyCount || 0
   const dailyAverage = (weeklyScans / 7).toFixed(1)
 

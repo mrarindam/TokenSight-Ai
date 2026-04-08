@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import type { ScanHistoryRecord } from "@/types/app"
-import { ChevronLeft, ChevronRight, History, RefreshCw, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, History, RefreshCw, Search, LogIn, Shield } from "lucide-react"
+import Link from "next/link"
 import { cn } from "@/lib/utils"
 
 const DEFAULT_API = "/api/scan/history"
@@ -57,9 +58,20 @@ export default function ScanHistoryPage() {
 
   if (status !== "authenticated") {
     return (
-      <div className="container py-16 text-center">
-        <h1 className="text-3xl font-bold">Scan History</h1>
-        <p className="mt-4 text-sm text-muted-foreground">Log in to review your past scans and intelligence signals.</p>
+      <div className="container max-w-lg py-24 text-center space-y-6">
+        <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+          <Shield className="h-8 w-8 text-primary" />
+        </div>
+        <h1 className="text-3xl font-black tracking-tight">Scan History</h1>
+        <p className="text-sm text-muted-foreground leading-relaxed">Log in to review your past scans and intelligence signals.</p>
+        <Link
+          href="/login"
+          className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+        >
+          <LogIn className="h-4 w-4" />
+          Sign in to continue
+        </Link>
+        <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
       </div>
     )
   }
