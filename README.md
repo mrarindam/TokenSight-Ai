@@ -140,7 +140,7 @@ A weighted system that measures analyst skill:
 |-------|-----------|
 | **Framework** | Next.js 14 (App Router) |
 | **Styling** | Tailwind CSS + shadcn/ui |
-| **Auth** | NextAuth.js (Google, GitHub, Credentials, Wallet) |
+| **Auth** | Privy (Google, GitHub, X, Email OTP, Wallet) |
 | **Database** | Supabase (PostgreSQL) |
 | **AI Engine** | Groq (Llama) |
 | **Blockchain Data** | Helius RPC (getAsset, getTokenAccounts) |
@@ -160,7 +160,7 @@ A weighted system that measures analyst skill:
 - Row-Level Security (RLS) policies on all Supabase tables
 - Anti-spam duplicate scan detection (24h cooldown)
 - Production-safe logging
-- NextAuth session validation on all protected routes
+- Privy bearer-token validation on all protected routes
 
 ---
 

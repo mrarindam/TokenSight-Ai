@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { useSession } from "next-auth/react"
+import { usePrivy } from "@privy-io/react-auth"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
 import { connectAndSign, signAndSendSwapTransaction, getPhantomProvider } from "@/lib/wallet"
 import {
@@ -46,7 +47,8 @@ interface QuoteData {
 }
 
 export function SwapWidget({ tokenAddress, tokenSymbol }: SwapWidgetProps) {
-  const { data: session, update: updateSession } = useSession()
+  const { authenticated, user } = usePrivy()
+  const authFetch = useAuthFetch()
   const [solAmount, setSolAmount] = useState("")
   const [quote, setQuote] = useState<QuoteData | null>(null)
   const [isQuoting, setIsQuoting] = useState(false)
@@ -59,9 +61,31 @@ export function SwapWidget({ tokenAddress, tokenSymbol }: SwapWidgetProps) {
   const [isSwapping, setIsSwapping] = useState(false)
   const [swapError, setSwapError] = useState("")
   const [swapTxHash, setSwapTxHash] = useState("")
+  const [walletAddress, setWalletAddress] = useState<string | null>(user?.wallet?.address || null)
 
-  const walletAddress = session?.user?.wallet || null
-  const isLoggedIn = !!session?.user
+  const isLoggedIn = authenticated
+
+  const fetchLinkedWallet = useCallback(async () => {
+    if (!authenticated) {
+      setWalletAddress(null)
+      return
+    }
+
+    try {
+      const res = await authFetch("/api/user/wallet", { cache: "no-store" })
+      const data = await res.json()
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to load linked wallet")
+      }
+      setWalletAddress(data.wallet || user?.wallet?.address || null)
+    } catch {
+      setWalletAddress(user?.wallet?.address || null)
+    }
+  }, [authFetch, authenticated, user?.wallet?.address])
+
+  useEffect(() => {
+    void fetchLinkedWallet()
+  }, [fetchLinkedWallet])
 
   // Fetch SOL price once (via proxy to avoid CORS)
   useEffect(() => {
@@ -381,14 +405,15 @@ export function SwapWidget({ tokenAddress, tokenSymbol }: SwapWidgetProps) {
                   try {
                     const result = await connectAndSign()
                     if (!result) { setLinkError("Connection cancelled"); return }
-                    const res = await fetch("/api/user/wallet", {
+                    const res = await authFetch("/api/user/wallet", {
                       method: "POST",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify(result),
                     })
                     const data = await res.json()
                     if (!res.ok) { setLinkError(data.error || "Failed to link wallet"); return }
-                    await updateSession()
+                    setWalletAddress(result.address)
+                    await fetchLinkedWallet()
                   } catch (err) {
                     setLinkError((err as Error).message || "Failed")
                   } finally {

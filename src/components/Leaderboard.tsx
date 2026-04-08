@@ -1,8 +1,9 @@
 'use client'
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { useSession } from 'next-auth/react'
+import { usePrivy } from '@privy-io/react-auth'
 import Image from 'next/image'
+import { useAuthFetch } from '@/lib/useAuthFetch'
 import { 
   Trophy, 
   Medal, 
@@ -46,10 +47,29 @@ const formatAccuracy = (rate: number) => {
 }
 
 export default function Leaderboard() {
-  const { data: session } = useSession()
+  const { authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
-  const currentUserId = session?.user?.id
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+
+  const fetchCurrentUser = useCallback(async () => {
+    if (!authenticated) {
+      setCurrentUserId(null)
+      return
+    }
+
+    try {
+      const response = await authFetch('/api/user/me', { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data?.error || 'Failed to load current user')
+      }
+      setCurrentUserId(data.user?.id || null)
+    } catch {
+      setCurrentUserId(null)
+    }
+  }, [authFetch, authenticated])
 
   const fetchLeaderboard = useCallback(async () => {
     try {
@@ -74,6 +94,10 @@ export default function Leaderboard() {
     const interval = setInterval(fetchLeaderboard, 15000)
     return () => clearInterval(interval)
   }, [fetchLeaderboard])
+
+  useEffect(() => {
+    void fetchCurrentUser()
+  }, [fetchCurrentUser])
 
   if (loading && leaderboard.length === 0) {
     return (

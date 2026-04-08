@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useState, useEffect, useCallback } from "react"
+import { usePrivy } from "@privy-io/react-auth"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn, fetchTokenPrice, isValidSolanaAddress } from "@/lib/utils"
 import type { PortfolioRecord } from "@/types/app"
 import { Wallet, TrendingUp, TrendingDown, DollarSign, BarChart3, RefreshCw, Pencil, Trash2, Plus, LogIn } from "lucide-react"
@@ -10,7 +11,8 @@ import Link from "next/link"
 const DEFAULT_API = "/api/portfolio"
 
 export default function PortfolioPage() {
-  const { status } = useSession()
+  const { ready, authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const [portfolio, setPortfolio] = useState<PortfolioRecord[]>([])
   const [livePrices, setLivePrices] = useState<Record<string, number | null>>({})
   const [loading, setLoading] = useState(false)
@@ -26,12 +28,26 @@ export default function PortfolioPage() {
     notes: "",
   })
 
+  const fetchPortfolio = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await authFetch(DEFAULT_API)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || "Unable to load portfolio")
+      setPortfolio(data.portfolio || [])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
+    }
+  }, [authFetch])
 
   useEffect(() => {
-    if (status === "authenticated") {
-      fetchPortfolio()
+    if (authenticated) {
+      void fetchPortfolio()
     }
-  }, [status])
+  }, [authenticated, fetchPortfolio])
 
   // Fetch live prices for all portfolio tokens
   useEffect(() => {
@@ -84,21 +100,6 @@ export default function PortfolioPage() {
   const totalPnL = summary.totalCurrentValue - summary.totalInvested
   const totalRoi = summary.totalInvested > 0 ? (totalPnL / summary.totalInvested) * 100 : 0
 
-  async function fetchPortfolio() {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch(DEFAULT_API)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || "Unable to load portfolio")
-      setPortfolio(data.portfolio || [])
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
@@ -121,7 +122,7 @@ export default function PortfolioPage() {
         notes: formState.notes,
       }
 
-      const response = await fetch(DEFAULT_API, {
+      const response = await authFetch(DEFAULT_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -159,11 +160,11 @@ export default function PortfolioPage() {
     setFormState({ token_address: "", token_name: "", token_symbol: "", quantity: "", entry_price: "", risk_level: "MEDIUM", notes: "" })
   }
 
-  if (status === "loading") {
+  if (!ready) {
     return <div className="container py-16">Loading portfolio...</div>
   }
 
-  if (status !== "authenticated") {
+  if (!authenticated) {
     return (
       <div className="container max-w-lg py-24 text-center space-y-6">
         <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
@@ -403,7 +404,7 @@ export default function PortfolioPage() {
                           if (!window.confirm('Delete this portfolio entry?')) return
                           setLoading(true); setError(null)
                           try {
-                            const response = await fetch(DEFAULT_API, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
+                            const response = await authFetch(DEFAULT_API, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
                             const data = await response.json()
                             if (!response.ok) throw new Error(data?.error || 'Failed to delete entry')
                             fetchPortfolio()
@@ -481,7 +482,7 @@ export default function PortfolioPage() {
                                 if (!window.confirm('Delete this portfolio entry?')) return
                                 setLoading(true); setError(null)
                                 try {
-                                  const response = await fetch(DEFAULT_API, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
+                                  const response = await authFetch(DEFAULT_API, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: item.id }) })
                                   const data = await response.json()
                                   if (!response.ok) throw new Error(data?.error || 'Failed to delete entry')
                                   fetchPortfolio()

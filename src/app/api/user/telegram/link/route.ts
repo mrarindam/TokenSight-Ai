@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { sendTelegramMessage } from "@/lib/telegram"
 
@@ -16,8 +15,8 @@ interface LinkTelegramBody {
  * Frontend will get this from Telegram bot /start command
  */
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
       .from("users")
       .select("id")
       .eq("telegram_id", telegramId)
-      .not("id", "eq", session.user.id)
+      .not("id", "eq", authUser.id)
       .maybeSingle()
 
     if (existingLink) {
@@ -48,7 +47,7 @@ export async function POST(request: Request) {
     const { error } = await supabaseAdmin
       .from("users")
       .update({ telegram_id: telegramId })
-      .eq("id", session.user.id)
+      .eq("id", authUser.id)
 
     if (error) {
       console.error("[api/user/telegram/link]", error)
@@ -71,16 +70,16 @@ export async function POST(request: Request) {
 /**
  * GET: Check if user has Telegram linked
  */
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+export async function GET(request: Request) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const { data: user } = await supabaseAdmin
     .from("users")
     .select("telegram_id")
-    .eq("id", session.user.id)
+    .eq("id", authUser.id)
     .maybeSingle()
 
   return NextResponse.json({

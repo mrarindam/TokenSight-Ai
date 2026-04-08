@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useState, useEffect, useCallback } from "react"
+import { usePrivy } from "@privy-io/react-auth"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn, fetchTokenPrice, isValidSolanaAddress } from "@/lib/utils"
 import type { PriceAlertRecord } from "@/types/app"
 import { Bell, Zap, Trash2, RefreshCw, TrendingDown, TrendingUp, Activity, LogIn } from "lucide-react"
@@ -34,7 +35,8 @@ const alertTypeColor = (type: string) => {
 }
 
 export default function AlertsPage() {
-  const { status } = useSession()
+  const { ready, authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const [alerts, setAlerts] = useState<PriceAlertRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,11 +51,26 @@ export default function AlertsPage() {
     threshold: "",
   })
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchAlerts()
+  const fetchAlerts = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await authFetch(DEFAULT_API)
+      const data = await response.json()
+      if (!response.ok) throw new Error(data?.error || "Unable to load alerts")
+      setAlerts(data.alerts || [])
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setLoading(false)
     }
-  }, [status])
+  }, [authFetch])
+
+  useEffect(() => {
+    if (authenticated) {
+      void fetchAlerts()
+    }
+  }, [authenticated, fetchAlerts])
 
   useEffect(() => {
     const tokenAddress = formState.token_address.trim()
@@ -76,21 +93,6 @@ export default function AlertsPage() {
     }
   }, [formState.token_address])
 
-  async function fetchAlerts() {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await fetch(DEFAULT_API)
-      const data = await response.json()
-      if (!response.ok) throw new Error(data?.error || "Unable to load alerts")
-      setAlerts(data.alerts || [])
-    } catch (err) {
-      setError((err as Error).message)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setError(null)
@@ -111,7 +113,7 @@ export default function AlertsPage() {
         threshold: Number(formState.threshold),
       }
 
-      const response = await fetch(DEFAULT_API, {
+      const response = await authFetch(DEFAULT_API, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -135,7 +137,7 @@ export default function AlertsPage() {
     setSuccessMessage(null)
 
     try {
-      const response = await fetch(DEFAULT_API, {
+      const response = await authFetch(DEFAULT_API, {
         method: "DELETE",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ alert_id: alertId }),
@@ -151,11 +153,11 @@ export default function AlertsPage() {
     }
   }
 
-  if (status === "loading") {
+  if (!ready) {
     return <div className="container py-16">Loading alerts...</div>
   }
 
-  if (status !== "authenticated") {
+  if (!authenticated) {
     return (
       <div className="container max-w-lg py-24 text-center space-y-6">
         <div className="mx-auto w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">

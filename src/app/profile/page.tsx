@@ -1,11 +1,10 @@
-import { getServerSession } from "next-auth/next"
+import { getAuthUserFromCookies } from "@/lib/auth"
 export const dynamic = 'force-dynamic'
-import { authOptions } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
-import { Crown, Target, Zap, LogOut, Search, Clock, Award, BarChart3, TrendingUp, Calendar, User } from "lucide-react"
+import { Crown, Target, Zap, Search, Clock, Award, BarChart3, TrendingUp, Calendar, User } from "lucide-react"
 import LocalTime from "@/components/LocalTime"
 import EditProfile from "@/components/EditProfile"
 import { WalletSettings } from "@/components/WalletSettings"
@@ -13,12 +12,13 @@ import { WalletSettings } from "@/components/WalletSettings"
 import { getLeague } from "@/lib/leagues"
 import { getLeaderboardEntries } from "@/lib/scan-analytics"
 import { getUserActiveStreak } from "@/lib/streak-logic"
+import { LogoutButton } from "@/components/LogoutButton"
 import { cn } from "@/lib/utils"
 
 export default async function ProfilePage() {
-  const session = await getServerSession(authOptions)
+  const authUser = await getAuthUserFromCookies()
 
-  if (!session?.user) {
+  if (!authUser) {
     redirect("/login")
   }
 
@@ -38,27 +38,27 @@ export default async function ProfilePage() {
     supabaseAdmin
       .from("users")
       .select("*")
-      .eq("id", session.user.id)
+      .eq("id", authUser.id)
       .maybeSingle(),
 
     // 2. User Stats
     supabaseAdmin
       .from("user_stats")
       .select("*")
-      .eq("user_id", session.user.id)
+      .eq("user_id", authUser.id)
       .single(),
 
     // 3. Leaderboard
     getLeaderboardEntries(),
 
     // 4. Active Streak
-    getUserActiveStreak(session.user.id),
+    getUserActiveStreak(authUser.id),
 
     // 5. Last Scan
     supabaseAdmin
       .from("scans")
       .select("created_at")
-      .eq("user_id", session.user.id)
+      .eq("user_id", authUser.id)
       .order("created_at", { ascending: false })
       .limit(1),
 
@@ -66,20 +66,20 @@ export default async function ProfilePage() {
     supabaseAdmin
       .from("scans")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", session.user.id),
+      .eq("user_id", authUser.id),
 
     // 7. High Conviction Hits
     supabaseAdmin
       .from("scans")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", session.user.id)
+      .eq("user_id", authUser.id)
       .gt("score", 70),
 
     // 8. Best Scan
     supabaseAdmin
       .from("scans")
       .select("token_name, score")
-      .eq("user_id", session.user.id)
+      .eq("user_id", authUser.id)
       .order("score", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -88,11 +88,11 @@ export default async function ProfilePage() {
     supabaseAdmin
       .from("scans")
       .select("*", { count: "exact", head: true })
-      .eq("user_id", session.user.id)
+      .eq("user_id", authUser.id)
       .gte("created_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()),
   ])
 
-  const currentRank = leaderboardEntries.find((entry) => entry.user_id === session.user.id)?.rank || "..."
+  const currentRank = leaderboardEntries.find((entry) => entry.user_id === authUser.id)?.rank || "..."
 
   const lastScan = lastScanData || []
   const totalScans = totalScansCount || 0
@@ -114,7 +114,7 @@ export default async function ProfilePage() {
 
   // Format Username/Wallet (Prioritize Display Name)
 
-  const userIdentity = dbUser?.display_name || dbUser?.username || session.user.name || "Authenticated Node"
+  const userIdentity = dbUser?.display_name || dbUser?.username || authUser.username || "Authenticated Node"
   const isWallet = userIdentity.startsWith("0x")
   const displayName = isWallet
     ? `${userIdentity.slice(0, 6)}...${userIdentity.slice(-4)}`
@@ -299,11 +299,7 @@ export default async function ProfilePage() {
 
       {/* DISCONNECT OPTION */}
       <div className="flex justify-center md:justify-end">
-        <form action="/api/auth/signout" method="POST">
-          <button className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-muted-foreground/60 hover:text-danger transition-colors bg-muted/20 px-4 py-2 rounded-lg border border-border/40">
-            <LogOut className="w-3 h-3" /> Disconnect Session
-          </button>
-        </form>
+        <LogoutButton />
       </div>
 
       <div className="animate-fade-up [animation-delay:400ms]">

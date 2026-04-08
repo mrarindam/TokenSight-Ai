@@ -1,33 +1,35 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useState, useEffect, useCallback } from "react"
+import { usePrivy } from "@privy-io/react-auth"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
 import { Send, CheckCircle, AlertCircle } from "lucide-react"
 
 export default function TelegramSettingsPage() {
-  const { status } = useSession()
+  const { authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const [telegramId, setTelegramId] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      fetchTelegramStatus()
-    }
-  }, [status])
-
-  async function fetchTelegramStatus() {
+  const fetchTelegramStatus = useCallback(async () => {
     try {
-      const response = await fetch("/api/user/telegram/link")
+      const response = await authFetch("/api/user/telegram/link")
       const data = await response.json()
       setTelegramId(data.telegram_id || null)
     } catch (err) {
       console.error("Failed to fetch Telegram status:", err)
     }
-  }
+  }, [authFetch])
+
+  useEffect(() => {
+    if (authenticated) {
+      void fetchTelegramStatus()
+    }
+  }, [authenticated, fetchTelegramStatus])
 
   async function handleLink() {
     if (!inputValue.trim()) {
@@ -40,7 +42,7 @@ export default function TelegramSettingsPage() {
     setSuccess(false)
 
     try {
-      const response = await fetch("/api/user/telegram/link", {
+      const response = await authFetch("/api/user/telegram/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ telegram_id: inputValue }),
@@ -63,7 +65,7 @@ export default function TelegramSettingsPage() {
     }
   }
 
-  if (status !== "authenticated") {
+  if (!authenticated) {
     return (
       <div className="container py-16 text-center">
         <h1 className="text-3xl font-bold">Telegram Alerts</h1>

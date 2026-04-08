@@ -1,14 +1,13 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 export async function GET(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -21,7 +20,7 @@ export async function GET(request: Request) {
   const { data, error, count } = await supabaseAdmin
     .from("scans")
     .select("*", { count: "exact" })
-    .eq("user_id", session.user.id)
+    .eq("user_id", authUser.id)
     .order("created_at", { ascending: false })
     .range(from, to)
 

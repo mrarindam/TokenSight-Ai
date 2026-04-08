@@ -5,7 +5,7 @@ import { supabase } from "@/lib/supabaseClient"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-const APP_URL = process.env.NEXTAUTH_URL || "https://tokensightai.tech"
+const APP_URL = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || "https://tokensightai.tech"
 const LOGIN_URL = `${APP_URL}/login`
 const TELEGRAM_SETTINGS_URL = `${APP_URL}/settings/telegram`
 

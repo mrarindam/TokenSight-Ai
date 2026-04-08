@@ -1,7 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { useSession } from "next-auth/react"
+import { useState, useEffect, useCallback } from "react"
+import { usePrivy } from "@privy-io/react-auth"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import type { ScanHistoryRecord } from "@/types/app"
 import { ChevronLeft, ChevronRight, History, RefreshCw, Search, LogIn, Shield } from "lucide-react"
 import Link from "next/link"
@@ -26,22 +27,17 @@ const scoreGlow = (score: number) => {
 }
 
 export default function ScanHistoryPage() {
-  const { status } = useSession()
+  const { ready, authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const [history, setHistory] = useState<ScanHistoryRecord[]>([])
   const [error, setError] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
 
-  useEffect(() => {
-    if (status === "authenticated") {
-      void fetchHistory(currentPage)
-    }
-  }, [status, currentPage])
-
-  async function fetchHistory(page: number) {
+  const fetchHistory = useCallback(async (page: number) => {
     setError(null)
     try {
-      const response = await fetch(`${DEFAULT_API}?page=${page}&pageSize=${PAGE_SIZE}`, { cache: "no-store" })
+      const response = await authFetch(`${DEFAULT_API}?page=${page}&pageSize=${PAGE_SIZE}`, { cache: "no-store" })
       const data = await response.json()
       if (!response.ok) throw new Error(data?.error || "Unable to load scan history")
       setHistory(data.scans || [])
@@ -50,13 +46,19 @@ export default function ScanHistoryPage() {
     } catch (err) {
       setError((err as Error).message)
     }
-  }
+  }, [authFetch])
 
-  if (status === "loading") {
+  useEffect(() => {
+    if (authenticated) {
+      void fetchHistory(currentPage)
+    }
+  }, [authenticated, currentPage, fetchHistory])
+
+  if (!ready) {
     return <div className="container py-16">Loading scan history...</div>
   }
 
-  if (status !== "authenticated") {
+  if (!authenticated) {
     return (
       <div className="container max-w-lg py-24 text-center space-y-6">
         <div className="mx-auto w-16 h-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">

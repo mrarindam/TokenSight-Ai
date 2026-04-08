@@ -1,12 +1,11 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
+  const authUser = await getAuthUser(req)
   
-  if (!session?.user?.id) {
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -32,7 +31,7 @@ export async function POST(req: Request) {
       const base64Data = avatarPayload.split(';base64,').pop()
       const extension = avatarPayload.split(';')[0].split('/')[1]
       const buffer = Buffer.from(base64Data, 'base64')
-      const fileName = `${session.user.id}-${Date.now()}.${extension}`
+      const fileName = `${authUser.id}-${Date.now()}.${extension}`
 
       const { error: uploadError } = await supabase.storage
         .from('avatars')
@@ -61,7 +60,7 @@ export async function POST(req: Request) {
     const { error: dbError } = await supabase
       .from('users')
       .update(updateData)
-      .eq('id', session.user.id)
+      .eq('id', authUser.id)
 
     if (dbError) throw dbError
 

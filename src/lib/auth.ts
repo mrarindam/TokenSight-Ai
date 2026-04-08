@@ -1,56 +1,51 @@
-import { NextAuthOptions } from "next-auth"
-import GoogleProvider from "next-auth/providers/google"
-import GitHubProvider from "next-auth/providers/github"
-import CredentialsProvider from "next-auth/providers/credentials"
 import { supabaseAdmin } from "./supabaseAdmin"
-
-// Extend NextAuth Session typings to include our tracked Supabase UUID natively
-declare module "next-auth" {
-  interface Session {
-    user: {
-      id: string
-      name?: string | null
-      email?: string | null
-      image?: string | null
-      wallet?: string | null
-    }
-  }
-}
+import { verifyPrivyToken, verifyPrivyTokenString, privyClient } from "./privy"
 
 /**
- * HELPER: Synchronize NextAuth user identity with Supabase native storage
+ * HELPER: Synchronize Privy user identity with Supabase native storage.
+ * Maps Privy login methods (email, wallet, twitter, etc.) to our users table.
  */
 export async function getOrCreateUser(userData: {
   email?: string | null;
   name?: string | null;
   wallet?: string | null;
+  twitterHandle?: string | null;
 }) {
-  const { email, name, wallet } = userData;
+  const { email, name, wallet, twitterHandle } = userData;
 
   try {
-    // 1. Check for existing record
-    let query = supabaseAdmin.from("users").select("*");
+    // 1. Check for existing record — try wallet first, then email
+    let existingUser = null;
+
     if (wallet) {
-      query = query.eq("wallet", wallet);
-    } else if (email) {
-      query = query.eq("email", email);
-    } else {
-      return null;
+      const { data } = await supabaseAdmin.from("users").select("*").eq("wallet", wallet).single();
+      existingUser = data;
     }
 
-    const { data: existingUser } = await query.single();
+    if (!existingUser && email) {
+      const { data } = await supabaseAdmin.from("users").select("*").eq("email", email).single();
+      existingUser = data;
+    }
 
     if (existingUser) {
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[AUTH] USER FETCHED: ${existingUser.username}`);
+      // Update twitter handle if newly available
+      if (twitterHandle && !existingUser.twitter_handle) {
+        await supabaseAdmin
+          .from("users")
+          .update({ twitter_handle: twitterHandle })
+          .eq("id", existingUser.id);
       }
       return existingUser;
     }
 
+    if (!wallet && !email) return null;
+
     // 2. Create new record if not found
     const username = wallet
       ? `${wallet.slice(0, 4)}...${wallet.slice(-4)}`
-      : (name || email?.split("@")[0] || "Trader");
+      : twitterHandle
+        ? `@${twitterHandle}`
+        : (name || email?.split("@")[0] || "Trader");
 
     const { data: newUser, error: createErr } = await supabaseAdmin
       .from("users")
@@ -58,6 +53,7 @@ export async function getOrCreateUser(userData: {
         email: wallet ? null : email,
         username,
         wallet: wallet || null,
+        twitter_handle: twitterHandle || null,
       })
       .select()
       .single();
@@ -90,78 +86,55 @@ export async function getOrCreateUser(userData: {
   }
 }
 
-export const authOptions: NextAuthOptions = {
-  providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID || "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET || "",
-    }),
-    GitHubProvider({
-      clientId: process.env.GITHUB_ID || "",
-      clientSecret: process.env.GITHUB_SECRET || "",
-    }),
-    CredentialsProvider({
-      id: "solana",
-      name: "Solana Wallet",
-      credentials: {
-        address: { label: "Wallet Address", type: "text" },
-      },
-      async authorize(credentials) {
-        if (!credentials?.address) return null
-        return {
-          id: credentials.address,
-          name: "Solana User",
-          email: `${credentials.address}@solana.wallet`,
-          image: null,
-        }
-      }
-    })
-  ],
-  callbacks: {
-    async signIn({ user, account }) {
-      const isWallet = account?.provider === "solana";
+/**
+ * Server-side helper: verify Privy token from request and return Supabase user.
+ * Used in all protected API routes to resolve the signed-in user.
+ */
+export async function getAuthUser(req: Request) {
+  const claims = await verifyPrivyToken(req);
+  if (!claims) return null;
 
-      const dbUser = await getOrCreateUser({
-        email: isWallet ? null : user.email,
-        name: user.name,
-        wallet: isWallet ? user.id : null,
-      });
+  try {
+    const privyUser = await privyClient.getUser(claims.userId);
 
-      if (dbUser) {
-        user.id = dbUser.id; // Correctly map Supabase UUID to session object
-        return true;
-      }
+    const email = privyUser.email?.address || null;
+    const wallet = privyUser.wallet?.address || null;
+    const twitterHandle = privyUser.twitter?.username || null;
+    const name = privyUser.google?.name || privyUser.github?.username || twitterHandle || null;
 
-      return false;
-    },
-    async jwt({ token, user, account }) {
-      if (user) {
-        token.id = user.id; // Persist Supabase UUID
-        token.provider = account?.provider;
-      }
-      return token;
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string;
-        // Fetch wallet from DB for every session refresh
-        try {
-          const { data } = await supabaseAdmin
-            .from("users")
-            .select("wallet")
-            .eq("id", token.id)
-            .single();
-          session.user.wallet = data?.wallet || null;
-        } catch {
-          session.user.wallet = null;
-        }
-      }
-      return session;
-    }
-  },
-  session: { strategy: "jwt" },
-  secret: process.env.NEXTAUTH_SECRET,
-  pages: {
-    signIn: "/login",
+    const dbUser = await getOrCreateUser({ email, name, wallet, twitterHandle });
+    return dbUser;
+  } catch (err) {
+    console.error("[AUTH] Failed to resolve Privy user:", err);
+    return null;
+  }
+}
+
+/**
+ * Server-side helper for Server Components: verify Privy token from cookies.
+ * Use in pages that need auth without a Request object (e.g. profile page).
+ */
+export async function getAuthUserFromCookies() {
+  // Dynamic import to avoid bundling next/headers in client components
+  const { cookies } = await import("next/headers");
+  const cookieStore = await cookies();
+  const token = cookieStore.get("privy-token")?.value;
+  if (!token) return null;
+
+  const claims = await verifyPrivyTokenString(token);
+  if (!claims) return null;
+
+  try {
+    const privyUser = await privyClient.getUser(claims.userId);
+
+    const email = privyUser.email?.address || null;
+    const wallet = privyUser.wallet?.address || null;
+    const twitterHandle = privyUser.twitter?.username || null;
+    const name = privyUser.google?.name || privyUser.github?.username || twitterHandle || null;
+
+    return await getOrCreateUser({ email, name, wallet, twitterHandle });
+  } catch (err) {
+    console.error("[AUTH] Failed to resolve Privy user from cookies:", err);
+    return null;
   }
 }

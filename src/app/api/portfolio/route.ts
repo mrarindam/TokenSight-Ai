@@ -1,6 +1,6 @@
 export async function DELETE(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const { id } = await request.json()
@@ -11,7 +11,7 @@ export async function DELETE(request: Request) {
     .from("user_portfolios")
     .delete()
     .eq("id", id)
-    .eq("user_id", session.user.id)
+    .eq("user_id", authUser.id)
   if (error) {
     console.error("[api/portfolio] delete", error)
     return NextResponse.json({ error: "Failed to delete portfolio entry" }, { status: 500 })
@@ -19,8 +19,7 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ success: true })
 }
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { isValidSolanaAddress } from "@/lib/utils"
 import type { CreatePortfolioPayload } from "@/types/app"
@@ -28,16 +27,16 @@ import type { CreatePortfolioPayload } from "@/types/app"
 export const dynamic = "force-dynamic"
 export const revalidate = 0
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+export async function GET(request: Request) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const { data, error } = await supabaseAdmin
     .from("user_portfolios")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("user_id", authUser.id)
     .order("updated_at", { ascending: false })
 
   if (error) {
@@ -49,8 +48,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -69,7 +68,7 @@ export async function POST(request: Request) {
   }
 
   const payload = {
-    user_id: session.user.id,
+    user_id: authUser.id,
     token_address: tokenAddress,
     token_name: tokenName,
     token_symbol: body.token_symbol?.trim() || null,
@@ -84,7 +83,7 @@ export async function POST(request: Request) {
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("user_portfolios")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("user_id", authUser.id)
     .eq("token_address", tokenAddress)
     .eq("status", "HOLDING")
     .single()

@@ -5,7 +5,7 @@ import FAQ from "@/components/FAQ"
 import { useEffect, useState, useCallback, useRef } from "react"
 import Link from "next/link"
 import Image from "next/image"
-import { useSession } from "next-auth/react"
+import { usePrivy } from "@privy-io/react-auth"
 import {
   Activity,
   ArrowRight,
@@ -118,7 +118,7 @@ function getStatusStyle(status: string) {
 }
 
 export default function Home() {
-  const { status } = useSession()
+  const { authenticated } = usePrivy()
   const [tokens, setTokens] = useState<Token[]>([])
   const [trendingTokens, setTrendingTokens] = useState<TrendingToken[]>([])
   const [globalStats, setGlobalStats] = useState<{ total_scans: number, monthly_scans: number, total_users: number } | null>(null)
@@ -253,13 +253,13 @@ export default function Home() {
                 <Wallet className="mr-2 h-4 w-4" /> Portfolio
               </Link>
               <Link
-                href={status === "authenticated" ? "/profile" : "/login"}
+                href={authenticated ? "/profile" : "/login"}
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
                   "h-12 px-8 border-border/60 hover:bg-accent/50 text-base font-medium"
                 )}
               >
-                {status === "authenticated" ? (
+                {authenticated ? (
                   <><User className="mr-2 h-4 w-4" /> Profile</>
                 ) : (
                   <><LogIn className="mr-2 h-4 w-4" /> Login</>

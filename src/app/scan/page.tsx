@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef, Suspense, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { usePrivy } from "@privy-io/react-auth"
 import Image from "next/image"
 import { getAnonScanCount, incrementAnonScanCount, isAnonLimitReached, getRemainingScans, SCAN_CONFIG } from "@/lib/anon-scans"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
 
 import {
@@ -190,7 +191,8 @@ const copyToClipboard = (text: string) => {
 function ScanPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
-  const { data: session } = useSession()
+  const { authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
   const urlAddress = searchParams.get("address")
 
   const [address, setAddress] = useState(urlAddress || "")
@@ -201,7 +203,7 @@ function ScanPageContent() {
   const [limitAlert, setLimitAlert] = useState(false)
   const hasStartedScan = useRef<string | null>(null)
 
-  const isAuthenticated = !!session?.user
+  const isAuthenticated = authenticated
   const [anonCount, setAnonCount] = useState(0)
   const [remaining, setRemaining] = useState(SCAN_CONFIG.LIMIT)
   const [limitReached, setLimitReached] = useState(false)
@@ -229,7 +231,7 @@ function ScanPageContent() {
       setTimeout(() => setScanPhase("Analyzing market data and holder dynamics..."), 800)
       setTimeout(() => setScanPhase("Calculating opportunity score..."), 1500)
 
-      const res = await fetch("/api/scan", {
+      const res = await authFetch("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -260,7 +262,7 @@ function ScanPageContent() {
       setIsScanning(false)
       setScanPhase("")
     }
-  }, [address, isScanning, limitReached, anonCount, isAuthenticated, router])
+  }, [address, isScanning, limitReached, anonCount, isAuthenticated, router, authFetch])
 
   useEffect(() => {
     if (urlAddress) {

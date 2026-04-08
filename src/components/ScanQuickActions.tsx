@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { useSession } from "next-auth/react"
+import { usePrivy } from "@privy-io/react-auth"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
 import { Plus, Bell, X, Loader2 } from "lucide-react"
 import type { ScanResult } from "@/app/scan/page"
@@ -34,7 +35,8 @@ function Overlay({ open, onClose, children }: { open: boolean; onClose: () => vo
 }
 
 export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
-  const { data: session } = useSession()
+  const { authenticated } = usePrivy()
+  const authFetch = useAuthFetch()
 
   // Portfolio state
   const [showPortfolio, setShowPortfolio] = useState(false)
@@ -69,7 +71,7 @@ export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
     else setAComparison("CHANGE_BY_PERCENT")
   }, [aType])
 
-  if (!session?.user) return null
+  if (!authenticated) return null
 
   const tokenName = result.contractName || "Unknown"
   const tokenSymbol = result.contractName?.split(" ")[0]?.slice(0, 10) || "???"
@@ -84,7 +86,7 @@ export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
     setPortfolioLoading(true)
     setPortfolioError(null)
     try {
-      const res = await fetch("/api/portfolio", {
+      const res = await authFetch("/api/portfolio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -120,7 +122,7 @@ export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
     setAlertLoading(true)
     setAlertError(null)
     try {
-      const res = await fetch("/api/alerts", {
+      const res = await authFetch("/api/alerts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

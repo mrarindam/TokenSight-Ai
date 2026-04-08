@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
 import { connectAndSign, getPhantomProvider } from "@/lib/wallet"
 import {
@@ -24,6 +25,7 @@ interface WalletSettingsProps {
 
 export function WalletSettings({ currentWallet, isWalletLogin }: WalletSettingsProps) {
   const router = useRouter()
+  const authFetch = useAuthFetch()
   const [isConnecting, setIsConnecting] = useState(false)
   const [isDisconnecting, setIsDisconnecting] = useState(false)
   const [error, setError] = useState("")
@@ -44,7 +46,7 @@ export function WalletSettings({ currentWallet, isWalletLogin }: WalletSettingsP
         return
       }
 
-      const res = await fetch("/api/user/wallet", {
+      const res = await authFetch("/api/user/wallet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(result),
@@ -72,7 +74,7 @@ export function WalletSettings({ currentWallet, isWalletLogin }: WalletSettingsP
     setSuccess("")
 
     try {
-      const res = await fetch("/api/user/wallet", { method: "DELETE" })
+      const res = await authFetch("/api/user/wallet", { method: "DELETE" })
       const data = await res.json()
 
       if (!res.ok) {

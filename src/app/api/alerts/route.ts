@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { sendTelegramMessage } from "@/lib/telegram"
 import type { CreateAlertPayload } from "@/types/app"
@@ -28,16 +27,16 @@ async function notifyUser(userId: string, text: string) {
   })
 }
 
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+export async function GET(request: Request) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   const { data, error } = await supabaseAdmin
     .from("price_alerts")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("user_id", authUser.id)
     .order("updated_at", { ascending: false })
 
   if (error) {
@@ -49,8 +48,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -74,7 +73,7 @@ export async function POST(request: Request) {
   const { data, error } = await supabaseAdmin
     .from("price_alerts")
     .insert({
-      user_id: session.user.id,
+      user_id: authUser.id,
       token_address: tokenAddress,
       token_name: tokenName,
       alert_type: body.alert_type,
@@ -93,7 +92,7 @@ export async function POST(request: Request) {
 
   if (data) {
     notifyUser(
-      session.user.id,
+      authUser.id,
       `✅ <b>Alert Created</b>\n\nYour alert for <b>${data.token_name || data.token_address}</b> has been created successfully.`
     )
   }
@@ -102,8 +101,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -118,7 +117,7 @@ export async function DELETE(request: Request) {
     .from("price_alerts")
     .select("id, token_address, token_name")
     .eq("id", alertId)
-    .eq("user_id", session.user.id)
+    .eq("user_id", authUser.id)
     .single()
 
   if (fetchError || !alert) {
@@ -137,7 +136,7 @@ export async function DELETE(request: Request) {
   }
 
   notifyUser(
-    session.user.id,
+    authUser.id,
     `🗑️ <b>Alert Deleted</b>\n\nYour alert for <b>${alert.token_name || alert.token_address}</b> has been removed.`
   )
 

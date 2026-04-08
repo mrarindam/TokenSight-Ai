@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import { supabase } from "@/lib/supabaseClient"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { updateStreak } from "@/lib/streak-logic"
@@ -52,10 +51,10 @@ export async function POST(request: Request) {
     // Strip everything except alphanumeric, trim, and normalize case to prevent address mismatches
     const address = typeof rawAddress === 'string' ? rawAddress.trim().replace(/[^a-zA-Z0-9]/g, "") : ""
 
-    const session = await getServerSession(authOptions)
+    const authUser = await getAuthUser(request)
 
     // --- STEP 1: AUTHENTICATION & LIMIT CHECK ---
-    if (!session?.user) {
+    if (!authUser) {
       // If not logged in, enforce the 5-scan daily limit
       if (anonCount !== undefined && anonCount >= 5) {
         return NextResponse.json({
@@ -531,7 +530,7 @@ export async function POST(request: Request) {
     const tokenSymbol = bagsToken?.symbol || dexTokenSymbol || "???"
 
     const { error: scanPersistError } = await supabaseAdmin.from("scans").insert({
-      user_id: session?.user?.id || null, // Nullable for anonymous users
+      user_id: authUser?.id || null, // Nullable for anonymous users
       token_name: tokenName,
       risk_level: label,
       score: score,
@@ -539,8 +538,8 @@ export async function POST(request: Request) {
 
     if (scanPersistError) {
       console.error("[api/scan] Failed to persist scan:", scanPersistError)
-    } else if (session?.user?.id) {
-      await updateStreak(session.user.id, score, tokenName)
+    } else if (authUser?.id) {
+      await updateStreak(authUser.id, score, tokenName)
       revalidatePath("/profile")
     }
 
@@ -608,8 +607,8 @@ export async function POST(request: Request) {
     }
 
     // --- TELEGRAM NOTIFICATION (fire & forget) ---
-    if (session?.user?.id) {
-      supabase.from("users").select("telegram_id").eq("id", session.user.id).single()
+    if (authUser?.id) {
+      supabase.from("users").select("telegram_id").eq("id", authUser.id).single()
         .then(({ data }) => {
           if (data?.telegram_id) {
             import("@/lib/telegram").then(({ sendTelegramMessage, formatScanMessage }) => {

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth/next"
-import { authOptions } from "@/lib/auth"
+import { getAuthUser } from "@/lib/auth"
 import { createClient } from "@supabase/supabase-js"
 import nacl from "tweetnacl"
 import bs58 from "bs58"
@@ -17,8 +16,8 @@ function getSupabaseAdmin() {
 
 // POST — Link wallet (with signature verification)
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+  const authUser = await getAuthUser(req)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -51,7 +50,7 @@ export async function POST(req: Request) {
       .from("users")
       .select("id")
       .eq("wallet", address)
-      .neq("id", session.user.id)
+      .neq("id", authUser.id)
       .maybeSingle()
 
     if (existingUser) {
@@ -62,7 +61,7 @@ export async function POST(req: Request) {
     const { error: updateError } = await supabase
       .from("users")
       .update({ wallet: address })
-      .eq("id", session.user.id)
+      .eq("id", authUser.id)
 
     if (updateError) throw updateError
 
@@ -75,9 +74,9 @@ export async function POST(req: Request) {
 }
 
 // DELETE — Unlink wallet
-export async function DELETE() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+export async function DELETE(request: Request) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -88,7 +87,7 @@ export async function DELETE() {
     const { data: user } = await supabase
       .from("users")
       .select("email, wallet")
-      .eq("id", session.user.id)
+      .eq("id", authUser.id)
       .single()
 
     if (!user?.email && user?.wallet) {
@@ -100,7 +99,7 @@ export async function DELETE() {
     const { error } = await supabase
       .from("users")
       .update({ wallet: null })
-      .eq("id", session.user.id)
+      .eq("id", authUser.id)
 
     if (error) throw error
 
@@ -113,9 +112,9 @@ export async function DELETE() {
 }
 
 // GET — Fetch current wallet for user
-export async function GET() {
-  const session = await getServerSession(authOptions)
-  if (!session?.user?.id) {
+export async function GET(request: Request) {
+  const authUser = await getAuthUser(request)
+  if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -124,7 +123,7 @@ export async function GET() {
     const { data: user } = await supabase
       .from("users")
       .select("wallet")
-      .eq("id", session.user.id)
+      .eq("id", authUser.id)
       .single()
 
     return NextResponse.json({ wallet: user?.wallet || null })
