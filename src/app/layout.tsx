@@ -1,10 +1,16 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/layout/Navbar";
+
+const FloatingAiChat = dynamic(
+  () => import("@/components/FloatingAiChat").then((module) => module.FloatingAiChat),
+  { ssr: false }
+);
 
 export const metadata: Metadata = {
   title: "TokenSight AI - Smart Token Discovery",
@@ -30,6 +36,7 @@ export default function RootLayout({
           >
             <Navbar />
             <main className="flex-1 flex flex-col">{children}</main>
+            <FloatingAiChat />
           </ThemeProvider>
         </Providers>
       </body>

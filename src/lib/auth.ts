@@ -16,6 +16,22 @@ type PrivyResolvedIdentity = {
   twitterHandle: string | null;
 };
 
+function getCookieValue(cookieHeader: string | null, name: string) {
+  if (!cookieHeader) return null;
+
+  const prefix = `${name}=`;
+  const parts = cookieHeader.split(";");
+
+  for (const part of parts) {
+    const trimmed = part.trim();
+    if (trimmed.startsWith(prefix)) {
+      return decodeURIComponent(trimmed.slice(prefix.length));
+    }
+  }
+
+  return null;
+}
+
 function isMissingColumnError(error: unknown, columnName: string) {
   if (!error || typeof error !== "object") return false;
 
@@ -245,10 +261,19 @@ export async function getOrCreateUser(userData: {
  */
 export async function getAuthUser(req: Request) {
   const claims = await verifyPrivyToken(req);
-  if (!claims) return null;
+  const cookieHeader = req.headers.get("cookie");
+  const idToken = getCookieValue(cookieHeader, "privy-id-token");
+
+  if (!claims && !idToken) return null;
 
   try {
-    const privyUser = await privyClient.getUser(claims.userId);
+    let privyUser;
+
+    if (claims?.userId) {
+      privyUser = await privyClient.getUser(claims.userId);
+    } else {
+      privyUser = await privyClient.getUser({ idToken: idToken! });
+    }
 
     const { email, name, wallet, twitterHandle } = resolvePrivyIdentity(privyUser);
 

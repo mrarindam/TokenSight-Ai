@@ -10,7 +10,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const { displayName, avatarPayload } = await req.json()
+    const { displayName, avatarPayload, avatarUrl, removeAvatar } = await req.json()
     
     // Initialize Supabase with SERVICE ROLE KEY to bypass RLS
     const supabase = createClient(
@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       }
     )
 
-    let avatarUrl = undefined
+    let resolvedAvatarUrl: string | null | undefined = undefined
 
     // 1. Process Avatar if provided
     if (avatarPayload && avatarPayload.startsWith('data:image/')) {
@@ -46,16 +46,26 @@ export async function POST(req: Request) {
         .from('avatars')
         .getPublicUrl(fileName)
 
-      avatarUrl = publicUrl
+      resolvedAvatarUrl = publicUrl
+    } else if (removeAvatar) {
+      resolvedAvatarUrl = null
+    } else if (typeof avatarUrl === 'string' && /^https?:\/\//.test(avatarUrl)) {
+      resolvedAvatarUrl = avatarUrl
     }
 
     // 2. Update DB
-    const updateData: { display_name: string; username: string; avatar_url?: string } = { 
-      display_name: displayName, 
-      username: displayName 
-    }
+    const updateData: { display_name?: string; username?: string; avatar_url?: string | null } = {}
     
-    if (avatarUrl) updateData.avatar_url = avatarUrl
+    if (typeof displayName === 'string' && displayName.trim()) {
+      updateData.display_name = displayName
+      updateData.username = displayName
+    }
+
+    if (resolvedAvatarUrl !== undefined) updateData.avatar_url = resolvedAvatarUrl
+
+    if (Object.keys(updateData).length === 0) {
+      return NextResponse.json({ error: 'No profile changes provided' }, { status: 400 })
+    }
 
     const { error: dbError } = await supabase
       .from('users')

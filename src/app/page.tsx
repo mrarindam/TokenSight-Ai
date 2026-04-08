@@ -127,16 +127,19 @@ export default function Home() {
   const [lastUpdated, setLastUpdated] = useState<string>("")
   const hasFetchedInitially = useRef(false)
 
-  const fetchTokens = useCallback(async () => {
+  const fetchTokens = useCallback(async (forceFresh = false) => {
     try {
       setIsLoading(true)
       setError(null)
 
-      const ts = Date.now()
+      const ts = forceFresh ? Date.now() : null
+      const requestInit = forceFresh ? { cache: "no-store" as const } : undefined
+      const withCacheBust = (path: string) => (ts ? `${path}?t=${ts}` : path)
+
       const [resBags, resTrending, resStats] = await Promise.all([
-        fetch(`/api/tokens?t=${ts}`, { cache: "no-store" }),
-        fetch(`/api/trending?t=${ts}`, { cache: "no-store" }),
-        fetch(`/api/stats?t=${ts}`, { cache: "no-store" })
+        fetch(withCacheBust("/api/tokens"), requestInit),
+        fetch(withCacheBust("/api/trending"), requestInit),
+        fetch(withCacheBust("/api/stats"), requestInit)
       ])
 
       const jsonBags: TokenApiResponse = await resBags.json()
@@ -335,7 +338,7 @@ export default function Home() {
             </div>
           </div>
           <button
-            onClick={fetchTokens}
+            onClick={() => fetchTokens(true)}
             disabled={isLoading}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-border/40 transition-all duration-200 disabled:opacity-50"
           >
@@ -361,7 +364,7 @@ export default function Home() {
             <h3 className="text-lg font-bold mb-1">Failed to load tokens</h3>
             <p className="text-sm text-muted-foreground mb-4 max-w-md text-center">{error}</p>
             <button
-              onClick={fetchTokens}
+              onClick={() => fetchTokens(true)}
               className={cn(
                 buttonVariants({ variant: "outline" }),
                 "gap-2"
@@ -425,7 +428,7 @@ export default function Home() {
                   {trendingTokens.length} Trending
                 </span>
                 <button
-                  onClick={fetchTokens}
+                  onClick={() => fetchTokens(true)}
                   disabled={isLoading}
                   className="flex items-center gap-2 rounded-xl border border-border/40 px-4 py-2 text-sm font-semibold text-muted-foreground transition hover:bg-accent/50 hover:text-foreground disabled:opacity-50"
                 >

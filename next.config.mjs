@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const isProduction = process.env.NODE_ENV === "production"
+
 const nextConfig = {
   images: {
     // Allow external images from Bags API and common token image hosts
@@ -9,11 +11,15 @@ const nextConfig = {
       },
     ],
   },
-  compiler: {
-    removeConsole: {
-      exclude: ["error", "warn"], // keep only errors and warnings
-    },
-  },
+  ...(isProduction
+    ? {
+        compiler: {
+          removeConsole: {
+            exclude: ["error", "warn"], // keep only errors and warnings
+          },
+        },
+      }
+    : {}),
   async headers() {
     return [
       {

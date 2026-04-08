@@ -10,6 +10,7 @@ const TRENDING_PAGE_SIZE = 20
 const MAX_TRENDING_TOKENS = 10
 const MIN_TRENDING_TOKENS = 10
 const CACHE_TTL_MS = 60 * 1000
+const TRENDING_CACHE_CONTROL = "public, max-age=15, stale-while-revalidate=45"
 
 let trendingCache:
   | {
@@ -222,7 +223,10 @@ export async function GET() {
           data: cached!.data,
           timestamp: cached!.timestamp,
         },
-        { status: 200 }
+        {
+          status: 200,
+          headers: { "Cache-Control": TRENDING_CACHE_CONTROL },
+        }
       )
     }
 
@@ -235,7 +239,10 @@ export async function GET() {
           data: pending.data,
           timestamp: pending.timestamp,
         },
-        { status: 200 }
+        {
+          status: 200,
+          headers: { "Cache-Control": TRENDING_CACHE_CONTROL },
+        }
       )
     }
 
@@ -267,7 +274,10 @@ export async function GET() {
         data: result.data,
         timestamp: result.timestamp,
       },
-      { status: 200 }
+      {
+        status: 200,
+        headers: { "Cache-Control": TRENDING_CACHE_CONTROL },
+      }
     )
   } catch (error) {
     trendingRequest = null
@@ -283,7 +293,10 @@ export async function GET() {
           error: "Serving cached trending data while Birdeye is rate-limited",
           timestamp: cached.timestamp,
         },
-        { status: 200 }
+        {
+          status: 200,
+          headers: { "Cache-Control": TRENDING_CACHE_CONTROL },
+        }
       )
     }
 
