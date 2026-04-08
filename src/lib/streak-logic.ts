@@ -17,7 +17,7 @@ function shiftUtcDay(dayKey: string, dayDelta: number): string {
 }
 
 function buildValidScanDays(scans: UserScanRow[]): Set<string> {
-  const lastAcceptedByToken = new Map<string, number>();
+  const seenTokenOnDay = new Set<string>();
   const validDayKeys = new Set<string>();
 
   for (const scan of scans) {
@@ -25,15 +25,16 @@ function buildValidScanDays(scans: UserScanRow[]): Set<string> {
     const createdAtMs = new Date(scan.created_at).getTime();
     if (!Number.isFinite(createdAtMs)) continue;
 
-    const lastAcceptedMs = lastAcceptedByToken.get(tokenName);
-    const isDuplicateWithin24Hours = lastAcceptedMs !== undefined && (createdAtMs - lastAcceptedMs) < 24 * 60 * 60 * 1000;
+    const dayKey = getUtcDayKey(scan.created_at);
+    const tokenDayKey = `${tokenName}::${dayKey}`;
 
-    if (isDuplicateWithin24Hours) {
+    // Deduplicate by token+calendar day (not 24h window)
+    if (seenTokenOnDay.has(tokenDayKey)) {
       continue;
     }
 
-    lastAcceptedByToken.set(tokenName, createdAtMs);
-    validDayKeys.add(getUtcDayKey(scan.created_at));
+    seenTokenOnDay.add(tokenDayKey);
+    validDayKeys.add(dayKey);
   }
 
   return validDayKeys;
