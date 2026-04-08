@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom'
 import { Settings, Camera, X, Check, Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
+import { useAuthFetch } from '@/lib/useAuthFetch'
 
 interface EditProfileProps {
   currentName: string
@@ -12,6 +13,7 @@ interface EditProfileProps {
 }
 
 export default function EditProfile({ currentName, currentAvatar }: EditProfileProps) {
+  const authFetch = useAuthFetch()
   const [isOpen, setIsOpen] = useState(false)
   const [name, setName] = useState(currentName)
   const [loading, setLoading] = useState(false)
@@ -58,7 +60,7 @@ export default function EditProfile({ currentName, currentAvatar }: EditProfileP
       }
 
       // Update via Proxy API (Bypasses all client-side RLS)
-      const response = await fetch('/api/user/update', {
+      const response = await authFetch('/api/user/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
