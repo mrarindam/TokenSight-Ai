@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { usePrivy } from "@privy-io/react-auth"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
@@ -11,6 +11,16 @@ export default function LoginPage() {
   const { login, ready, authenticated } = usePrivy()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const hasOpenedModal = useRef(false)
+
+  const handleLogin = useCallback(async () => {
+    setIsSubmitting(true)
+
+    try {
+      await login()
+    } finally {
+      setIsSubmitting(false)
+    }
+  }, [login])
 
   useEffect(() => {
     if (ready && authenticated) {
@@ -25,17 +35,7 @@ export default function LoginPage() {
 
     hasOpenedModal.current = true
     void handleLogin()
-  }, [authenticated, ready])
-
-  const handleLogin = async () => {
-    setIsSubmitting(true)
-
-    try {
-      await login()
-    } finally {
-      setIsSubmitting(false)
-    }
-  }
+  }, [authenticated, handleLogin, ready])
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#020408] px-6">

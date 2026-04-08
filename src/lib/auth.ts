@@ -1,6 +1,28 @@
 import { supabaseAdmin } from "./supabaseAdmin"
 import { verifyPrivyToken, verifyPrivyTokenString, privyClient } from "./privy"
 
+function isMissingColumnError(error: unknown, columnName: string) {
+  if (!error || typeof error !== "object") return false;
+
+  const maybeError = error as {
+    code?: string;
+    message?: string;
+    details?: string;
+    hint?: string;
+  };
+
+  const combined = [maybeError.message, maybeError.details, maybeError.hint]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return (
+    maybeError.code === "42703" ||
+    maybeError.code === "PGRST204" ||
+    combined.includes(columnName.toLowerCase())
+  );
+}
+
 /**
  * HELPER: Synchronize Privy user identity with Supabase native storage.
  * Maps Privy login methods (email, wallet, twitter, etc.) to our users table.
@@ -30,10 +52,14 @@ export async function getOrCreateUser(userData: {
     if (existingUser) {
       // Update twitter handle if newly available
       if (twitterHandle && !existingUser.twitter_handle) {
-        await supabaseAdmin
+        const { error: updateErr } = await supabaseAdmin
           .from("users")
           .update({ twitter_handle: twitterHandle })
           .eq("id", existingUser.id);
+
+        if (updateErr && !isMissingColumnError(updateErr, "twitter_handle")) {
+          console.error("[AUTH] Failed to update twitter handle:", updateErr);
+        }
       }
       return existingUser;
     }
@@ -47,7 +73,7 @@ export async function getOrCreateUser(userData: {
         ? `@${twitterHandle}`
         : (name || email?.split("@")[0] || "Trader");
 
-    const { data: newUser, error: createErr } = await supabaseAdmin
+    let { data: newUser, error: createErr } = await supabaseAdmin
       .from("users")
       .insert({
         email: wallet ? null : email,
@@ -57,6 +83,21 @@ export async function getOrCreateUser(userData: {
       })
       .select()
       .single();
+
+    if (createErr && isMissingColumnError(createErr, "twitter_handle")) {
+      const retryResult = await supabaseAdmin
+        .from("users")
+        .insert({
+          email: wallet ? null : email,
+          username,
+          wallet: wallet || null,
+        })
+        .select()
+        .single();
+
+      newUser = retryResult.data;
+      createErr = retryResult.error;
+    }
 
     if (createErr || !newUser) {
       console.error("[AUTH] USER CREATION FAILED:", createErr);
