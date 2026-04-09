@@ -66,6 +66,29 @@ type BagsClaimSnapshot = {
   claimersCount: number | null
 }
 
+type BagsLaunchToken = {
+  tokenMint?: string | null
+  symbol?: string | null
+  name?: string | null
+  image?: string | null
+  website?: string | null
+  twitter?: string | null
+  description?: string | null
+  status?: string | null
+  liquidity?: number | null
+  volume?: number | null
+  volume24h?: number | null
+  creatorTokens?: number | null
+  creator_tokens?: number | null
+  dbcPoolKey?: string | null
+  pairCreatedAt?: string | number | null
+  createdAt?: string | number | null
+  created_at?: string | number | null
+  launchTime?: string | number | null
+  launchedAt?: string | number | null
+  [key: string]: unknown
+}
+
 type HeliusFirstMintSnapshot = {
   firstMintTime: string | null
   firstMintTx: string | null
@@ -255,13 +278,14 @@ export async function POST(request: Request) {
     const birdeyeToken = normalizeBirdeyeToken(rawBirdeyeOverview, rawBirdeyePrice)
     const bagsToken = fallbackBagsToken
     const bagsRecord = asRecord(bagsToken)
+    const bagsSymbol = pickString(bagsRecord, ["symbol"])
     const isBagsToken = Boolean(bagsToken)
 
     // --- FALLBACK: DexScreener Symbol Search ---
-    if ((!rawDex?.pairs || rawDex.pairs.length === 0) && fallbackBagsToken?.symbol) {
-      console.log(`[SCAN_ENGINE] DexScreener address lookup failed for ${address}. Retrying with symbol: ${fallbackBagsToken.symbol}`)
+    if ((!rawDex?.pairs || rawDex.pairs.length === 0) && bagsSymbol) {
+      console.log(`[SCAN_ENGINE] DexScreener address lookup failed for ${address}. Retrying with symbol: ${bagsSymbol}`)
       try {
-        const fallbackRes = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${fallbackBagsToken.symbol}`, {
+        const fallbackRes = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${bagsSymbol}`, {
           method: "GET",
           next: { revalidate: 15 }
         })
@@ -270,7 +294,7 @@ export async function POST(request: Request) {
           // Filter pairs to find one that matches our address or is likely the same token
           const matchingPair = fallbackData.pairs?.find((p: { baseToken?: { address?: string, symbol?: string } }) => 
             p.baseToken?.address?.toLowerCase() === address.toLowerCase() ||
-            p.baseToken?.symbol?.toLowerCase() === fallbackBagsToken.symbol.toLowerCase()
+            p.baseToken?.symbol?.toLowerCase() === bagsSymbol.toLowerCase()
           )
           if (matchingPair) {
             if (process.env.NODE_ENV === "development") {
@@ -452,10 +476,11 @@ export async function POST(request: Request) {
     const phishingHoldPct = pickNumber(bagsRecord, ["phishingHold", "phishing_hold", "phishingHoldPct", "phishing_hold_pct"])
     const initialLiquidity = pickNumber(bagsRecord, ["initialLiquidity", "initial_liquidity", "initialLiquidityUsd", "initialLiquiditySol", "startLiquidity"])
     const curveProgressPct = pickNumber(bagsRecord, ["curveProgressPct", "curve_pct", "curvePct", "progressPct", "bondingCurvePct"])
+    const bagsStatus = pickString(bagsRecord, ["status"])
     const launchType = formatLaunchType(
       pickString(bagsRecord, ["launchType", "launch_type", "poolType"])
       || rawJupiterToken?.launchpad
-      || bagsToken?.status
+      || bagsStatus
       || null,
     )
     const createdOn = resolveLaunchOrigin(bagsRecord, rawJupiterToken?.launchpad ?? null)
@@ -1676,7 +1701,7 @@ async function fetchHeliusCreatorBehavior(
   }
 }
 
-async function fetchBagsLaunchToken(address: string, bagsApiKey: string): Promise<Record<string, unknown> | null> {
+async function fetchBagsLaunchToken(address: string, bagsApiKey: string): Promise<BagsLaunchToken | null> {
   if (!bagsApiKey) return null
 
   const bagsUrl = "https://public-api-v2.bags.fm/api/v1/token-launch/feed"
@@ -1699,7 +1724,7 @@ async function fetchBagsLaunchToken(address: string, bagsApiKey: string): Promis
     if (!rawBags || !Array.isArray(rawBags.response)) return null
 
     const targetAddress = address.toLowerCase()
-    const found = rawBags.response.find((token: { tokenMint?: string }) => token.tokenMint?.toLowerCase() === targetAddress) || null
+    const found = rawBags.response.find((token: BagsLaunchToken) => token.tokenMint?.toLowerCase() === targetAddress) || null
 
     if (process.env.NODE_ENV === "development") {
       console.log(`[SCAN_ENGINE] Bags API: Found=${!!found}`)
@@ -1782,7 +1807,7 @@ async function fetchBagsClaimStats(address: string, bagsApiKey: string): Promise
 
     const raw = await res.json().catch(() => null)
     const rows = Array.isArray(raw?.response) ? raw.response : []
-    let totalClaimedLamports = 0n
+    let totalClaimedLamports = BigInt(0)
     let hasClaims = false
 
     for (const entry of rows) {
