@@ -2,9 +2,10 @@
 
 import { useState, useEffect, useRef } from "react"
 import { usePrivy } from "@privy-io/react-auth"
+import { useRouter } from "next/navigation"
 import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
-import { Plus, Bell, X, Loader2 } from "lucide-react"
+import { Plus, Bell, X, Loader2, LogIn } from "lucide-react"
 import type { ScanResult } from "@/app/scan/page"
 
 interface QuickActionsProps {
@@ -36,7 +37,9 @@ function Overlay({ open, onClose, children }: { open: boolean; onClose: () => vo
 
 export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
   const { authenticated } = usePrivy()
+  const router = useRouter()
   const authFetch = useAuthFetch()
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false)
 
   // Portfolio state
   const [showPortfolio, setShowPortfolio] = useState(false)
@@ -70,8 +73,6 @@ export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
     else if (aType === "PRICE_RISE") setAComparison("ABOVE")
     else setAComparison("CHANGE_BY_PERCENT")
   }, [aType])
-
-  if (!authenticated) return null
 
   const tokenName = result.contractName || "Unknown"
   const tokenSymbol = result.contractName?.split(" ")[0]?.slice(0, 10) || "???"
@@ -152,7 +153,7 @@ export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
   const labelClass = "text-[10px] font-black uppercase tracking-widest text-muted-foreground/70"
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       {/* Success toasts */}
       {portfolioSuccess && (
         <div className="text-xs text-green-500 bg-green-500/10 px-4 py-2.5 rounded-lg border border-green-500/20 font-semibold text-center">✓ Added to portfolio!</div>
@@ -161,23 +162,73 @@ export function ScanQuickActions({ result, tokenAddress }: QuickActionsProps) {
         <div className="text-xs text-green-500 bg-green-500/10 px-4 py-2.5 rounded-lg border border-green-500/20 font-semibold text-center">✓ Alert created!</div>
       )}
 
+      {showLoginPrompt && !authenticated && (
+        <div className="absolute inset-x-0 bottom-full z-30 mb-3 rounded-2xl border border-primary/20 bg-background/95 px-4 py-4 shadow-2xl shadow-primary/10 backdrop-blur-xl">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-foreground">Login required for portfolio and alerts</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Sign in to save tokens to your portfolio and create alerts from this scan.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push("/login")}
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+              >
+                <LogIn className="h-4 w-4" />
+                Login to Continue
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowLoginPrompt(false)}
+                className="rounded-xl border border-border/40 px-3 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/30 hover:text-foreground"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Buttons */}
       <div className="flex flex-col sm:flex-row gap-3">
         <button
-          onClick={() => { setShowPortfolio(true); setPortfolioError(null) }}
+          onClick={() => {
+            if (!authenticated) {
+              setShowLoginPrompt(true)
+              return
+            }
+            setShowPortfolio(true)
+            setPortfolioError(null)
+          }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-primary/10 border border-primary/30 hover:bg-primary/20 transition-colors font-semibold text-sm text-primary"
         >
           <Plus className="h-4 w-4" />
           Add to Portfolio
         </button>
         <button
-          onClick={() => { setShowAlert(true); setAlertError(null) }}
+          onClick={() => {
+            if (!authenticated) {
+              setShowLoginPrompt(true)
+              return
+            }
+            setShowAlert(true)
+            setAlertError(null)
+          }}
           className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-warning/10 border border-warning/30 hover:bg-warning/20 transition-colors font-semibold text-sm text-warning"
         >
           <Bell className="h-4 w-4" />
           Set Alert
         </button>
       </div>
+
+      {!authenticated && (
+        <div className="text-center text-[11px] font-medium text-muted-foreground/70">
+          Login to save portfolio entries and alerts.
+        </div>
+      )}
 
       {/* ===== PORTFOLIO POPUP ===== */}
       <Overlay open={showPortfolio} onClose={() => setShowPortfolio(false)}>

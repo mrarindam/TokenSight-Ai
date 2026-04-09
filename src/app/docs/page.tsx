@@ -212,6 +212,10 @@ export default function DocsPage() {
               <li><strong className="text-foreground">Token Logo &amp; Name</strong> — The token&apos;s logo image, name, and symbol are displayed prominently at the top of the scan result.</li>
               <li><strong className="text-foreground">Animated score ring</strong> — Color-coded visual (red ≤30, yellow 31–59, blue 60–84, green 85+) with smooth fill animation and inline sub-scores.</li>
               <li><strong className="text-foreground">Security Badges</strong> — Three badges showing <em>Mint authority</em> (disabled = safe), <em>Freeze authority</em> (disabled = safe), and <em>LP burn profile</em> (strong = safe). Green means renounced/safe, red means still enabled/risky. Fetched from the Helius getAsset API.</li>
+              <li><strong className="text-foreground">Trust Signals</strong> — Jupiter verification, strict tagging, suspicious audit status, organic score, and Helius metadata mutability. Optional rows like tax, max fee, and dev balance only appear when real provider data exists.</li>
+              <li><strong className="text-foreground">Launch Metadata</strong> — Launch type, launchpad, first mint time, first pool time, first mint transaction, pool ids, and Bags launch context when available.</li>
+              <li><strong className="text-foreground">Trading Flow</strong> — Jupiter Tokens V2 windows for 5m, 1h, 6h, and 24h showing buy volume, sell volume, traders, organic buyers, and price change.</li>
+              <li><strong className="text-foreground">Liquidity Intelligence</strong> — Meteora DLMM + DAMM v2 liquidity analysis with total liquidity, protocol split, liquidity score, near-price coverage, reserve-based $100 / $1,000 price-impact estimates, and risk warnings.</li>
               <li><strong className="text-foreground">Intelligence Signals</strong> — AI-generated bullet points flagging key findings (e.g. &quot;Strong holder base&quot;, &quot;Low liquidity risk&quot;). Each signal is auto-classified by severity with color-coded icons.</li>
               <li><strong className="text-foreground">Market Metrics</strong> — 7 cards showing Price, Liquidity, Volume (24h), Holders, Top 10 Wallet Concentration, Creator Tokens, and Market Cap. Large numbers use compact K/M/B formatting (e.g. $1.80M instead of $1,795,000).</li>
               <li><strong className="text-foreground">Holder Breakdown</strong> — Top 10 holder wallets with percentage bars and truncated wallet addresses. Each address has a copy button on hover. Shown for all tokens regardless of holder count.</li>
@@ -221,7 +225,7 @@ export default function DocsPage() {
               <li><strong className="text-foreground">AI Summary</strong> — A natural-language explanation with keyword highlighting (green for bullish like &quot;strong&quot;, &quot;healthy&quot;; red for bearish like &quot;extreme&quot;, &quot;low&quot;). Includes the &gt;1K holder Birdeye link when applicable.</li>
               <li><strong className="text-foreground">Live Chart</strong> — Embedded token price chart powered by DexScreener.</li>
               <li><strong className="text-foreground">Swap Widget</strong> — Swap directly into the token via Jupiter with MEV protection, without leaving the page.</li>
-              <li><strong className="text-foreground">Quick Actions</strong> — One-click buttons to add to portfolio, set an alert, or view on explorer.</li>
+              <li><strong className="text-foreground">Quick Actions</strong> — Add to portfolio and alert buttons stay visible for guests too. If a guest clicks them, a login prompt appears directly above the action bar instead of redirecting or hiding the buttons.</li>
             </ul>
 
             <h3 className="font-bold text-foreground pt-2">Risk Labels</h3>
@@ -238,19 +242,21 @@ export default function DocsPage() {
               <li>Paste a Solana token address in the search bar.</li>
               <li>Hit <strong className="text-foreground">Scan</strong> and wait for the AI analysis (3-phase loading animation).</li>
               <li>Review the overall score, 4 sub-scores (Quality, Momentum, Confidence, Risk Cap), and security badges (Mint, Freeze, LP Burn).</li>
-              <li>Check signals, market metrics (including Market Cap), holder breakdown with wallet addresses, and identity &amp; ownership data.</li>
-              <li>Review links &amp; social (website, Twitter, Telegram), the AI summary, and live chart.</li>
-              <li>Use quick actions to swap via Jupiter, add to portfolio, or set an alert directly from the results.</li>
+              <li>Check Trust Signals, Launch Metadata, Trading Flow, and Liquidity Intelligence to understand verification, launch structure, execution depth, and slippage risk.</li>
+              <li>Review signals, market metrics (including Market Cap), holder breakdown with wallet addresses, and identity &amp; ownership data.</li>
+              <li>Review links &amp; social, the AI summary, and live chart.</li>
+              <li>Use the swap widget or quick actions directly from the result. Guests can click the quick actions and then authenticate from the bottom prompt.</li>
             </ol>
 
             <h3 className="font-bold text-foreground pt-2">Scan Layout</h3>
-            <p>Results are displayed in a structured 3-row layout with glowing widget borders:</p>
+            <p>Results are displayed as a multi-section dashboard with glowing widget borders:</p>
             <ul className="list-disc pl-5 space-y-1">
-              <li><strong className="text-foreground">Row 1</strong> — Intelligence Signals (left) &amp; Live Chart (right)</li>
-              <li><strong className="text-foreground">Row 2</strong> — Market Metrics (left), Holder Breakdown (center), Identity &amp; Ownership (right)</li>
-              <li><strong className="text-foreground">Row 3</strong> — AI Summary (left), Swap Widget (center), Links &amp; Social (right)</li>
+              <li><strong className="text-foreground">Protocol layer</strong> — Trust Signals, Bags-specific fee or behavior details when available, and Launch Metadata</li>
+              <li><strong className="text-foreground">Flow &amp; Liquidity</strong> — Jupiter Trading Flow followed by the Meteora Liquidity Intelligence widget</li>
+              <li><strong className="text-foreground">Core analysis</strong> — Intelligence Signals, Live Chart, Market Metrics, Holder Breakdown, and Identity &amp; Ownership</li>
+              <li><strong className="text-foreground">Execution layer</strong> — AI Summary, Swap Widget, Links &amp; Social, and bottom quick actions</li>
             </ul>
-            <p className="text-xs text-muted-foreground/60">On mobile, all widgets stack vertically. Links &amp; Social appears after Identity &amp; Ownership for easy access.</p>
+            <p className="text-xs text-muted-foreground/60">On mobile, all widgets stack vertically. Optional trust or fee rows stay hidden if provider data does not exist, and the guest login prompt opens above the quick-action buttons.</p>
 
             <p className="text-xs text-muted-foreground/50">Guest users get a limited number of daily scans. Log in for unlimited access.</p>
           </SectionCard>

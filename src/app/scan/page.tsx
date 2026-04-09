@@ -40,6 +40,7 @@ import { Input } from "@/components/ui/input"
 // Card components available if needed
 // import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ScanQuickActions } from "@/components/ScanQuickActions"
+import { LiquidityWidget } from "@/components/LiquidityWidget"
 import { TokenChart } from "@/components/TokenChart"
 import { SwapWidget } from "@/components/SwapWidget"
 
@@ -73,6 +74,111 @@ interface ScanResult {
       mintAuthorityDisabled: boolean;
       freezeAuthorityDisabled: boolean;
       lpBurnProfile: string;
+    };
+    verification?: {
+      isVerified: boolean | null;
+      strictList: boolean;
+      organicScore: number | null;
+      organicScoreLabel: string | null;
+      suspicious: boolean;
+      tags: string[];
+      launchpad?: string | null;
+      graduatedAt?: string | null;
+      updatedAt?: string | null;
+    };
+    behavior?: {
+      mutableMetadata: boolean | null;
+      honeypotRisk?: {
+        level: string;
+        summary: string;
+      };
+      buyTaxPct?: number | null;
+      sellTaxPct?: number | null;
+      maxFeePct?: number | null;
+      bundleWallets?: number | null;
+      bundleHoldPct?: number | null;
+      phishingWallets?: number | null;
+      phishingHoldPct?: number | null;
+      devBalancePct?: number | null;
+      devMints?: number | null;
+    };
+    fees?: {
+      totalFeeSol?: number | null;
+      totalClaimedSol?: number | null;
+      creatorCount?: number | null;
+      claimersCount?: number | null;
+      createdOn?: string | null;
+    };
+    launch?: {
+      launchType?: string | null;
+      launchpad?: string | null;
+      initialLiquidity?: number | null;
+      curveProgressPct?: number | null;
+      firstMintTime?: string | null;
+      firstMintTx?: string | null;
+      firstPoolTime?: string | null;
+      firstPoolId?: string | null;
+      graduatedAt?: string | null;
+      poolDexes?: string[];
+      bagsPoolKey?: string | null;
+      bagsConfigKey?: string | null;
+    };
+    tokenInfo?: {
+      decimals?: number | null;
+      supply?: number | null;
+      circulatingSupply?: number | null;
+      tokenProgram?: string | null;
+      mutableMetadata?: boolean | null;
+      burned?: boolean | null;
+      mintAuthority?: string | null;
+      freezeAuthority?: string | null;
+    };
+    platforms?: {
+      bags: boolean;
+      jupiter: boolean;
+      helius: boolean;
+    };
+    tradingFlow?: {
+      m5?: {
+        priceChange: number | null;
+        buyVolume: number | null;
+        sellVolume: number | null;
+        traders: number | null;
+        buys: number | null;
+        sells: number | null;
+        organicBuyers: number | null;
+        netBuyers: number | null;
+      } | null;
+      h1?: {
+        priceChange: number | null;
+        buyVolume: number | null;
+        sellVolume: number | null;
+        traders: number | null;
+        buys: number | null;
+        sells: number | null;
+        organicBuyers: number | null;
+        netBuyers: number | null;
+      } | null;
+      h6?: {
+        priceChange: number | null;
+        buyVolume: number | null;
+        sellVolume: number | null;
+        traders: number | null;
+        buys: number | null;
+        sells: number | null;
+        organicBuyers: number | null;
+        netBuyers: number | null;
+      } | null;
+      h24?: {
+        priceChange: number | null;
+        buyVolume: number | null;
+        sellVolume: number | null;
+        traders: number | null;
+        buys: number | null;
+        sells: number | null;
+        organicBuyers: number | null;
+        netBuyers: number | null;
+      } | null;
     };
     identity?: {
       tokenMint: string;
@@ -178,6 +284,26 @@ const formatReadablePrice = (value: number | null | undefined) => {
   const fixed = value.toFixed(decimals).replace(/0+$/, "").replace(/\.$/, "")
   return `$${fixed}`
 }
+
+const formatMetricValue = (value: number | null | undefined, prefix = "") => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "---"
+  if (Math.abs(value) >= 1_000_000_000) return `${prefix}${(value / 1_000_000_000).toFixed(2)}B`
+  if (Math.abs(value) >= 1_000_000) return `${prefix}${(value / 1_000_000).toFixed(2)}M`
+  if (Math.abs(value) >= 1_000) return `${prefix}${(value / 1_000).toFixed(2)}K`
+  return `${prefix}${value.toLocaleString(undefined, { maximumFractionDigits: Math.abs(value) >= 1 ? 2 : 4 })}`
+}
+
+const formatPercentValue = (value: number | null | undefined) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "Unavailable"
+  return `${value.toFixed(2)}%`
+}
+
+const formatSignedPercent = (value: number | null | undefined) => {
+  if (value === null || value === undefined || Number.isNaN(value)) return "---"
+  return `${value > 0 ? "+" : ""}${value.toFixed(2)}%`
+}
+
+const compactLinkLabel = (value: string) => value.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "")
 
 const truncateAddress = (addr: string, front = 4, back = 4) => {
   if (!addr || addr.length <= front + back + 3) return addr
@@ -376,6 +502,7 @@ function ScanPageContent() {
   }
 
   const signalStyle = result ? getSignalStyle(animatedScore) : null
+  const isBagsToken = result?.meta?.platforms?.bags ?? false
 
   return (
     <div className="flex flex-col min-h-screen relative overflow-x-hidden w-full outline outline-0 outline-red-500/0">
@@ -617,6 +744,263 @@ function ScanPageContent() {
                 ))}
               </div>
             )}
+
+            {/* ===== ENRICHED PROTOCOL PANELS ===== */}
+            <div className={cn("grid grid-cols-1 gap-5", isBagsToken ? "xl:grid-cols-3" : "xl:grid-cols-2")}>
+              <div className="relative rounded-2xl border border-amber-500/20 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-amber-500/10 hover:shadow-amber-500/20 transition-shadow duration-500">
+                <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent opacity-50" />
+                <div className="flex items-center justify-between gap-3 mb-4">
+                  <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground">
+                    <ShieldAlert className="h-3.5 w-3.5 text-amber-400" />
+                    Trust Signals
+                  </h3>
+                  {result.meta?.verification?.organicScore !== null && result.meta?.verification?.organicScore !== undefined && (
+                    <div className="text-right">
+                      <div className="text-sm font-black text-amber-300">{result.meta.verification.organicScore.toFixed(1)}</div>
+                      <div className="text-[9px] uppercase tracking-widest text-muted-foreground/50">Organic</div>
+                    </div>
+                  )}
+                </div>
+
+                <div className={cn(
+                  "rounded-xl border px-4 py-3 text-sm font-semibold mb-4",
+                  result.meta?.behavior?.mutableMetadata
+                    ? "border-amber-500/20 bg-amber-500/5 text-amber-300"
+                    : "border-emerald-500/20 bg-emerald-500/5 text-emerald-300"
+                )}>
+                  {result.meta?.behavior?.mutableMetadata
+                    ? "Token owner can still change token metadata such as name, decimals, or URI."
+                    : "Token metadata looks immutable from the current asset data."}
+                </div>
+
+                <div className="space-y-2.5">
+                  {[
+                    {
+                      label: "Verification",
+                      value: result.meta?.verification?.isVerified === null || result.meta?.verification?.isVerified === undefined
+                        ? "Unavailable"
+                        : result.meta.verification.isVerified
+                          ? "Verified"
+                          : "Unverified",
+                      valueClass: result.meta?.verification?.isVerified ? "text-emerald-400" : "text-amber-300",
+                    },
+                    {
+                      label: "Jupiter Strict",
+                      value: result.meta?.verification ? (result.meta.verification.strictList ? "Yes" : "No") : "Unavailable",
+                      valueClass: result.meta?.verification?.strictList ? "text-emerald-400" : "text-muted-foreground/70",
+                    },
+                    {
+                      label: "Suspicious Audit",
+                      value: result.meta?.verification ? (result.meta.verification.suspicious ? "Flagged" : "Clear") : "Unavailable",
+                      valueClass: result.meta?.verification?.suspicious ? "text-rose-400" : "text-emerald-400",
+                    },
+                    {
+                      label: "Honeypot Risk",
+                      value: result.meta?.behavior?.honeypotRisk?.level ? result.meta.behavior.honeypotRisk.level.toUpperCase() : "UNKNOWN",
+                      valueClass: result.meta?.behavior?.honeypotRisk?.level === "critical"
+                        ? "text-rose-400"
+                        : result.meta?.behavior?.honeypotRisk?.level === "low"
+                          ? "text-emerald-400"
+                          : "text-muted-foreground/70",
+                    },
+                    {
+                      label: "Buy Tax",
+                      value: formatPercentValue(result.meta?.behavior?.buyTaxPct),
+                      valueClass: "text-foreground",
+                      visible: result.meta?.behavior?.buyTaxPct !== null && result.meta?.behavior?.buyTaxPct !== undefined,
+                    },
+                    {
+                      label: "Sell Tax",
+                      value: formatPercentValue(result.meta?.behavior?.sellTaxPct),
+                      valueClass: "text-foreground",
+                      visible: result.meta?.behavior?.sellTaxPct !== null && result.meta?.behavior?.sellTaxPct !== undefined,
+                    },
+                    {
+                      label: "Max Fee",
+                      value: formatPercentValue(result.meta?.behavior?.maxFeePct),
+                      valueClass: "text-foreground",
+                      visible: result.meta?.behavior?.maxFeePct !== null && result.meta?.behavior?.maxFeePct !== undefined,
+                    },
+                    {
+                      label: "Dev Balance",
+                      value: formatPercentValue(result.meta?.behavior?.devBalancePct),
+                      valueClass: "text-foreground",
+                      visible: result.meta?.behavior?.devBalancePct !== null && result.meta?.behavior?.devBalancePct !== undefined,
+                    },
+                  ].filter((row) => row.visible !== false).map((row) => (
+                    <div key={row.label} className="flex items-center justify-between rounded-xl border border-border/20 bg-muted/10 px-3 py-2.5 gap-3">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{row.label}</span>
+                      <span className={cn("text-sm font-semibold text-right", row.valueClass)}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {result.meta?.behavior?.honeypotRisk?.summary && (
+                  <p className="text-xs text-muted-foreground/80 leading-relaxed mt-4 border-t border-border/10 pt-4">
+                    {result.meta.behavior.honeypotRisk.summary}
+                  </p>
+                )}
+
+                {!!result.meta?.verification?.tags?.length && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {result.meta.verification.tags.slice(0, 6).map((tag) => (
+                      <span key={tag} className="rounded-full border border-amber-500/20 bg-amber-500/5 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-200/80">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {isBagsToken && (
+              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-shadow duration-500">
+                <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent opacity-50" />
+                <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
+                  <Activity className="h-3.5 w-3.5 text-cyan-400" />
+                  Fees, Holders &amp; Behavior
+                </h3>
+
+                <div className="space-y-2.5">
+                  {[
+                    { label: "Total Fee", value: result.meta?.fees?.totalFeeSol !== null && result.meta?.fees?.totalFeeSol !== undefined ? `${result.meta.fees.totalFeeSol.toFixed(6)} SOL` : "Unavailable" },
+                    { label: "Total Claimed", value: result.meta?.fees?.totalClaimedSol !== null && result.meta?.fees?.totalClaimedSol !== undefined ? `${result.meta.fees.totalClaimedSol.toFixed(6)} SOL` : "Unavailable" },
+                    { label: "Bundle Wallets", value: formatMetricValue(result.meta?.behavior?.bundleWallets) },
+                    { label: "Bundle Hold", value: formatPercentValue(result.meta?.behavior?.bundleHoldPct) },
+                    { label: "Phishing Wallets", value: formatMetricValue(result.meta?.behavior?.phishingWallets) },
+                    { label: "Decimals", value: result.meta?.tokenInfo?.decimals !== null && result.meta?.tokenInfo?.decimals !== undefined ? String(result.meta.tokenInfo.decimals) : "Unavailable" },
+                    { label: "Created On", value: result.meta?.fees?.createdOn || "Unavailable", isLink: !!result.meta?.fees?.createdOn?.startsWith("http") },
+                  ].map((row) => (
+                    <div key={row.label} className="flex items-center justify-between rounded-xl border border-border/20 bg-muted/10 px-3 py-2.5 gap-3">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{row.label}</span>
+                      {row.isLink && row.value !== "Unavailable" ? (
+                        <a href={row.value} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-primary hover:underline truncate inline-flex items-center gap-1 max-w-[55%] justify-end">
+                          {compactLinkLabel(row.value)}
+                          <ExternalLink className="h-3 w-3 shrink-0" />
+                        </a>
+                      ) : (
+                        <span className="text-sm font-semibold text-right">{row.value}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+              )}
+
+              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-violet-500/10 hover:shadow-violet-500/20 transition-shadow duration-500">
+                <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500/40 to-transparent opacity-50" />
+                <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
+                  <Fingerprint className="h-3.5 w-3.5 text-violet-400" />
+                  Launch Metadata
+                </h3>
+
+                <div className="space-y-2.5">
+                  {[
+                    { label: "Launch Type", value: result.meta?.launch?.launchType || "Unavailable" },
+                    { label: "Launchpad", value: result.meta?.launch?.launchpad || result.meta?.verification?.launchpad || "Unavailable" },
+                    {
+                      label: "Initial Liquidity",
+                      value: result.meta?.launch?.initialLiquidity !== null && result.meta?.launch?.initialLiquidity !== undefined ? formatMetricValue(result.meta.launch.initialLiquidity, "$") : "Unavailable",
+                      visible: result.meta?.launch?.initialLiquidity !== null && result.meta?.launch?.initialLiquidity !== undefined,
+                    },
+                    {
+                      label: "Curve Progress",
+                      value: formatPercentValue(result.meta?.launch?.curveProgressPct),
+                      visible: result.meta?.launch?.curveProgressPct !== null && result.meta?.launch?.curveProgressPct !== undefined,
+                    },
+                    { label: "First Mint Time", value: result.meta?.launch?.firstMintTime ? new Date(result.meta.launch.firstMintTime).toLocaleString() : "Unavailable" },
+                    { label: "First Pool Time", value: result.meta?.launch?.firstPoolTime ? new Date(result.meta.launch.firstPoolTime).toLocaleString() : "Unavailable" },
+                    { label: "Graduated At", value: result.meta?.launch?.graduatedAt ? new Date(result.meta.launch.graduatedAt).toLocaleString() : "Unavailable" },
+                  ].filter((row) => row.visible !== false).map((row) => (
+                    <div key={row.label} className="flex items-center justify-between rounded-xl border border-border/20 bg-muted/10 px-3 py-2.5 gap-3">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{row.label}</span>
+                      <span className="text-sm font-semibold text-right">{row.value}</span>
+                    </div>
+                  ))}
+
+                  {[
+                    { label: "First Mint Tx", value: result.meta?.launch?.firstMintTx || null },
+                    { label: "First Pool", value: result.meta?.launch?.firstPoolId || null },
+                    { label: "Bags Pool", value: result.meta?.launch?.bagsPoolKey || null },
+                  ].filter((row) => row.value).map((row) => (
+                    <div key={row.label} className="group/launch flex items-center justify-between rounded-xl border border-border/20 bg-muted/10 px-3 py-2.5 gap-3">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{row.label}</span>
+                      <div className="flex items-center gap-1.5 font-mono text-[11px] font-semibold">
+                        <span>{truncateAddress(row.value!, 5, 5)}</span>
+                        <button
+                          onClick={() => copyToClipboard(row.value!)}
+                          className="opacity-0 group-hover/launch:opacity-100 transition-opacity text-muted-foreground/50 hover:text-primary"
+                          title="Copy"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {!!result.meta?.launch?.poolDexes?.length && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {result.meta.launch.poolDexes.map((dex) => (
+                      <span key={dex} className="rounded-full border border-violet-500/20 bg-violet-500/5 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-violet-200/80">
+                        {dex}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ===== TRADING FLOW ===== */}
+            <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
+              <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-50" />
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground">
+                  <TrendingUp className="h-3.5 w-3.5 text-primary" />
+                  Trading Flow
+                </h3>
+                <span className="text-[10px] font-semibold text-muted-foreground/60">Jupiter Tokens V2</span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+                {[
+                  { label: "5M", data: result.meta?.tradingFlow?.m5 },
+                  { label: "1H", data: result.meta?.tradingFlow?.h1 },
+                  { label: "6H", data: result.meta?.tradingFlow?.h6 },
+                  { label: "24H", data: result.meta?.tradingFlow?.h24 },
+                ].map((window) => (
+                  <div key={window.label} className="rounded-xl border border-border/20 bg-muted/10 p-4 space-y-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="text-sm font-black tracking-widest text-muted-foreground/70">{window.label}</span>
+                      <span className={cn(
+                        "text-lg font-black tabular-nums",
+                        (window.data?.priceChange || 0) > 0 ? "text-emerald-400" : (window.data?.priceChange || 0) < 0 ? "text-rose-400" : "text-foreground"
+                      )}>
+                        {formatSignedPercent(window.data?.priceChange)}
+                      </span>
+                    </div>
+                    <div className="space-y-1.5 text-sm">
+                      {[
+                        { label: "Buy", value: formatMetricValue(window.data?.buyVolume, "$"), valueClass: "text-emerald-400" },
+                        { label: "Sell", value: formatMetricValue(window.data?.sellVolume, "$"), valueClass: "text-rose-300" },
+                        { label: "Traders", value: formatMetricValue(window.data?.traders), valueClass: "text-foreground" },
+                        { label: "Organic Buyers", value: formatMetricValue(window.data?.organicBuyers), valueClass: "text-primary" },
+                      ].map((row) => (
+                        <div key={row.label} className="flex items-center justify-between gap-3">
+                          <span className="text-muted-foreground/70">{row.label}</span>
+                          <span className={cn("font-semibold tabular-nums", row.valueClass)}>{row.value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <LiquidityWidget
+              tokenAddress={address || urlAddress || ""}
+              tokenSymbol={result.contractName}
+              fallbackPriceUsd={result.meta?.price ?? null}
+            />
 
             {/* ===== ROW 1: Signals (left) | Chart (right) ===== */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">

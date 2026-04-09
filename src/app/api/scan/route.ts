@@ -10,6 +10,7 @@ import type { Token } from "@/types/token"
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
 const BAGS_API_KEY = process.env.BAGS_API_KEY?.trim() || ""
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY?.trim() || ""
+const JUPITER_API_KEY = process.env.JUPITER_API_KEY?.trim() || ""
 
 type DexPair = {
   chainId?: string
@@ -52,6 +53,83 @@ type HeliusCreatorBehavior = {
   source: "helius-authority" | "helius-creator" | null
 }
 
+type BagsCreatorProfile = {
+  wallet: string | null
+  provider: string | null
+  providerUsername: string | null
+  royaltyBps: number | null
+  isCreator: boolean
+}
+
+type BagsClaimSnapshot = {
+  totalClaimedSol: number | null
+  claimersCount: number | null
+}
+
+type HeliusFirstMintSnapshot = {
+  firstMintTime: string | null
+  firstMintTx: string | null
+}
+
+type JupiterStatsWindow = {
+  priceChange: number | null
+  buyVolume: number | null
+  sellVolume: number | null
+  traders: number | null
+  buys: number | null
+  sells: number | null
+  organicBuyers: number | null
+  netBuyers: number | null
+}
+
+type JupiterTokenSnapshot = {
+  id: string
+  name: string | null
+  symbol: string | null
+  icon: string | null
+  decimals: number | null
+  circSupply: number | null
+  totalSupply: number | null
+  tokenProgram: string | null
+  twitter: string | null
+  telegram: string | null
+  website: string | null
+  dev: string | null
+  launchpad: string | null
+  partnerConfig: string | null
+  graduatedPool: string | null
+  graduatedAt: string | null
+  holderCount: number | null
+  fdv: number | null
+  mcap: number | null
+  usdPrice: number | null
+  liquidity: number | null
+  createdAt: string | null
+  updatedAt: string | null
+  mintAuthority: string | null
+  freezeAuthority: string | null
+  organicScore: number | null
+  organicScoreLabel: string | null
+  isVerified: boolean | null
+  tags: string[]
+  firstPool: {
+    id: string | null
+    createdAt: string | null
+  } | null
+  audit: {
+    isSus: boolean
+    mintAuthorityDisabled: boolean | null
+    freezeAuthorityDisabled: boolean | null
+    topHoldersPercentage: number | null
+    devBalancePercentage: number | null
+    devMints: number | null
+  } | null
+  stats5m: JupiterStatsWindow | null
+  stats1h: JupiterStatsWindow | null
+  stats6h: JupiterStatsWindow | null
+  stats24h: JupiterStatsWindow | null
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json()
@@ -88,7 +166,19 @@ export async function POST(request: Request) {
       console.log(`[SCAN_ENGINE] Starting full audit for: ${address}`)
     }
 
-    const [birdeyePriceResult, birdeyeOverviewResult, bagsResult, dexResult, geckoResult, heliusAssetResult] = await Promise.allSettled([
+    const [
+      birdeyePriceResult,
+      birdeyeOverviewResult,
+      bagsResult,
+      dexResult,
+      geckoResult,
+      heliusAssetResult,
+      jupiterResult,
+      bagsLifetimeFeesResult,
+      bagsCreatorsResult,
+      bagsClaimsResult,
+      heliusFirstMintResult,
+    ] = await Promise.allSettled([
       fetchBirdeyeData(
         "/defi/price",
         { address, include_liquidity: "true", ui_amount_mode: "scaled" },
@@ -101,35 +191,7 @@ export async function POST(request: Request) {
         BIRDEYE_API_KEY,
         "token_overview"
       ),
-
-      // 1. Fetch token details from Bags API Feed
-      (async () => {
-        const bagsUrl = "https://public-api-v2.bags.fm/api/v1/token-launch/feed"
-        try {
-          const bagsRes = await fetch(bagsUrl, {
-            method: "GET",
-            headers: { "x-api-key": BAGS_API_KEY, "Content-Type": "application/json" },
-            next: { revalidate: 30 },
-          })
-          
-          if (bagsRes.status === 429) console.error("[SCAN_ENGINE] Bags API Rate Limit (429) Triggered")
-
-          if (bagsRes.ok) {
-            const rawBags = await bagsRes.json()
-            if (rawBags && Array.isArray(rawBags.response)) {
-              const targetAddress = address.toLowerCase()
-              const found = rawBags.response.find((t: { tokenMint?: string }) => t.tokenMint?.toLowerCase() === targetAddress) || null
-              if (process.env.NODE_ENV === "development") {
-                console.log(`[SCAN_ENGINE] Bags API: Found=${!!found}`)
-              }
-              return found
-            }
-          }
-        } catch (e) {
-          console.warn("[SCAN_ENGINE] Bags API Error:", e)
-        }
-        return null
-      })(),
+      fetchBagsLaunchToken(address, BAGS_API_KEY),
 
       // 2. Fetch on-chain data from DexScreener (with RETRY)
       (async () => {
@@ -165,7 +227,12 @@ export async function POST(request: Request) {
         return null
       })(),
       fetchGeckoTerminalPoolSnapshot(address),
-      fetchHeliusAsset(address, HELIUS_API_KEY)
+      fetchHeliusAsset(address, HELIUS_API_KEY),
+      fetchJupiterTokenSnapshot(address, JUPITER_API_KEY),
+      fetchBagsLifetimeFees(address, BAGS_API_KEY),
+      fetchBagsCreators(address, BAGS_API_KEY),
+      fetchBagsClaimStats(address, BAGS_API_KEY),
+      fetchHeliusFirstMintSnapshot(address, HELIUS_API_KEY),
     ])
 
     // --- STEP 2.5: EXTRACT DATA & FALLBACKS ---
@@ -175,13 +242,24 @@ export async function POST(request: Request) {
     let rawDex = dexResult.status === "fulfilled" ? dexResult.value : null
     const rawGeckoPool = geckoResult.status === "fulfilled" ? geckoResult.value : null
     const rawHeliusAsset = heliusAssetResult.status === "fulfilled" ? heliusAssetResult.value : null
+    const rawJupiterToken = jupiterResult.status === "fulfilled" ? jupiterResult.value : null
+    const bagsLifetimeFeesSol = bagsLifetimeFeesResult.status === "fulfilled" ? bagsLifetimeFeesResult.value : null
+    const bagsCreators = bagsCreatorsResult.status === "fulfilled" ? bagsCreatorsResult.value : []
+    const bagsClaims = bagsClaimsResult.status === "fulfilled"
+      ? bagsClaimsResult.value
+      : { totalClaimedSol: null, claimersCount: null }
+    const firstMintSnapshot = heliusFirstMintResult.status === "fulfilled"
+      ? heliusFirstMintResult.value
+      : { firstMintTime: null, firstMintTx: null }
 
     const birdeyeToken = normalizeBirdeyeToken(rawBirdeyeOverview, rawBirdeyePrice)
     const bagsToken = fallbackBagsToken
+    const bagsRecord = asRecord(bagsToken)
+    const isBagsToken = Boolean(bagsToken)
 
     // --- FALLBACK: DexScreener Symbol Search ---
     if ((!rawDex?.pairs || rawDex.pairs.length === 0) && fallbackBagsToken?.symbol) {
-      console.log(`[SCAN_ENGINE] DexScreener address lookup failed for ${address}. Retrying with symbol: ${bagsToken.symbol}`)
+      console.log(`[SCAN_ENGINE] DexScreener address lookup failed for ${address}. Retrying with symbol: ${fallbackBagsToken.symbol}`)
       try {
         const fallbackRes = await fetch(`https://api.dexscreener.com/latest/dex/search?q=${fallbackBagsToken.symbol}`, {
           method: "GET",
@@ -319,38 +397,84 @@ export async function POST(request: Request) {
     const creatorBehavior = HELIUS_API_KEY
       ? await fetchHeliusCreatorBehavior(rawHeliusAsset, HELIUS_API_KEY)
       : { creatorAddress: null, createdTokens: null, source: null }
-    const holdersCount = holderSnapshot.holdersCount ?? birdeyeToken?.holders ?? null
-    const topHolderPct = holderSnapshot.topHolderPct
-    const whaleWarning = holderSnapshot.whaleWarning
-    const holderBreakdown = holderSnapshot.holderBreakdown
+    const holdersCount = holderSnapshot.holdersCount ?? rawJupiterToken?.holderCount ?? birdeyeToken?.holders ?? null
+    const topHolderPct = holderSnapshot.topHolderPct ?? rawJupiterToken?.audit?.topHoldersPercentage ?? null
+    const whaleWarning = holderSnapshot.topHolderPct !== null
+      ? holderSnapshot.whaleWarning
+      : topHolderPct !== null && topHolderPct > 50
+    const holderBreakdown = holderSnapshot.topHolderPct !== null ? holderSnapshot.holderBreakdown : []
     const isPartialHolderData = holderSnapshot.isPartialSnapshot
 
     // --- EXTRACT SECURITY & IDENTITY FROM HELIUS ASSET ---
     const tokenInfo = rawHeliusAsset?.token_info as Record<string, unknown> | undefined
-    const mintAuthority = tokenInfo?.mint_authority as string | null ?? null
-    const freezeAuthority = tokenInfo?.freeze_authority as string | null ?? null
+    const mintAuthority = rawJupiterToken?.mintAuthority ?? tokenInfo?.mint_authority as string | null ?? null
+    const freezeAuthority = rawJupiterToken?.freezeAuthority ?? tokenInfo?.freeze_authority as string | null ?? null
+    const mutableMetadata = typeof rawHeliusAsset?.mutable === "boolean" ? rawHeliusAsset.mutable : null
+    const isBurnt = typeof rawHeliusAsset?.burnt === "boolean" ? rawHeliusAsset.burnt : null
+    const mintAuthorityDisabled = rawJupiterToken?.audit?.mintAuthorityDisabled ?? !mintAuthority
+    const freezeAuthorityDisabled = rawJupiterToken?.audit?.freezeAuthorityDisabled ?? !freezeAuthority
     const lpBurnStatus = (() => {
       // If no freeze authority, LP burn is considered strong
-      if (!freezeAuthority) return "strong"
+      if (freezeAuthorityDisabled) return "strong"
       return "unknown"
     })()
 
     // Identity & Ownership
+    const primaryCreator = bagsCreators.find((creator) => creator.isCreator) ?? bagsCreators[0] ?? null
     const deployerAddress = creatorBehavior.creatorAddress
+      ?? primaryCreator?.wallet
+      ?? rawJupiterToken?.dev
       ?? (rawHeliusAsset?.authorities as { address: string }[] | undefined)?.[0]?.address
       ?? null
-    const poolAddress = highestPair?.pairAddress ?? null
-    const pairCreatedTimestamp = highestPair?.pairCreatedAt
+    const poolAddress = rawJupiterToken?.firstPool?.id ?? highestPair?.pairAddress ?? bagsToken?.dbcPoolKey ?? null
+    const pairCreatedTimestamp = parseTimestamp(rawJupiterToken?.firstPool?.createdAt || null)
+      ?? highestPair?.pairCreatedAt
       ?? parseTimestamp(bagsToken?.pairCreatedAt || bagsToken?.createdAt || bagsToken?.created_at || bagsToken?.launchTime || bagsToken?.launchedAt || null)
       ?? null
 
     // Links & Social
-    const websiteUrl = bagsToken?.website || highestPair?.info?.websites?.[0]?.url || birdeyeToken?.website || null
-    const twitterUrl = bagsToken?.twitter || highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "twitter")?.url || birdeyeToken?.twitter || null
-    const telegramUrl = highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "telegram")?.url || null
+    const websiteUrl = bagsToken?.website || rawJupiterToken?.website || highestPair?.info?.websites?.[0]?.url || birdeyeToken?.website || null
+    const twitterUrl = bagsToken?.twitter || rawJupiterToken?.twitter || highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "twitter")?.url || birdeyeToken?.twitter || null
+    const telegramUrl = pickString(bagsRecord, ["telegram"]) || rawJupiterToken?.telegram || highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "telegram")?.url || null
     const quoteToken = highestPair?.baseToken?.address === address ? "Wrapped Sol (SOL)" : null
-    const marketCap = highestPair?.fdv ?? highestPair?.marketCap ?? rawGeckoPool?.marketCap ?? null
-    const tokenImage = bagsToken?.image || highestPair?.info?.imageUrl || birdeyeToken?.image || null
+    const marketCap = rawJupiterToken?.mcap ?? highestPair?.fdv ?? highestPair?.marketCap ?? rawGeckoPool?.marketCap ?? null
+    const tokenImage = bagsToken?.image || rawJupiterToken?.icon || highestPair?.info?.imageUrl || birdeyeToken?.image || null
+    const decimals = rawJupiterToken?.decimals ?? pickNumber(tokenInfo || null, ["decimals"]) ?? null
+    const supply = pickNumber(tokenInfo || null, ["supply"]) ?? rawJupiterToken?.totalSupply ?? null
+    const circulatingSupply = rawJupiterToken?.circSupply ?? null
+    const tokenProgram = pickString(tokenInfo || null, ["token_program"]) ?? rawJupiterToken?.tokenProgram ?? null
+    const buyTaxPct = pickNumber(bagsRecord, ["buyTax", "buy_tax", "buyTaxPct", "buyFee", "buyFeePct", "buy_fee_pct"])
+    const sellTaxPct = pickNumber(bagsRecord, ["sellTax", "sell_tax", "sellTaxPct", "sellFee", "sellFeePct", "sell_fee_pct"])
+    const maxFeePct = pickNumber(bagsRecord, ["maxFee", "max_fee", "maxFeePct", "max_fee_pct"])
+    const bundleWallets = pickNumber(bagsRecord, ["bundleWallets", "bundle_wallets"])
+    const bundleHoldPct = pickNumber(bagsRecord, ["bundleHold", "bundle_hold", "bundleHoldPct", "bundle_hold_pct"])
+    const phishingWallets = pickNumber(bagsRecord, ["phishingWallets", "phishing_wallets"])
+    const phishingHoldPct = pickNumber(bagsRecord, ["phishingHold", "phishing_hold", "phishingHoldPct", "phishing_hold_pct"])
+    const initialLiquidity = pickNumber(bagsRecord, ["initialLiquidity", "initial_liquidity", "initialLiquidityUsd", "initialLiquiditySol", "startLiquidity"])
+    const curveProgressPct = pickNumber(bagsRecord, ["curveProgressPct", "curve_pct", "curvePct", "progressPct", "bondingCurvePct"])
+    const launchType = formatLaunchType(
+      pickString(bagsRecord, ["launchType", "launch_type", "poolType"])
+      || rawJupiterToken?.launchpad
+      || bagsToken?.status
+      || null,
+    )
+    const createdOn = resolveLaunchOrigin(bagsRecord, rawJupiterToken?.launchpad ?? null)
+    const strictList = rawJupiterToken?.tags.includes("strict") || false
+    const suspicious = rawJupiterToken?.audit?.isSus || false
+    const honeypotRisk = suspicious
+      ? {
+          level: "critical",
+          summary: "Jupiter audit flagged this token as suspicious. Treat tradability and token behavior as high risk.",
+        }
+      : rawJupiterToken
+        ? {
+            level: "low",
+            summary: "No direct suspicious-trading flag was returned by Jupiter audit data.",
+          }
+        : {
+            level: "unknown",
+            summary: "No honeypot-specific signal is available from the current API set.",
+          }
 
     if (process.env.NODE_ENV === "development") {
       console.log("HOLDER DEBUG:", {
@@ -384,9 +508,14 @@ export async function POST(request: Request) {
       bagsToken?.image || highestPair?.info?.imageUrl,
       bagsToken?.website || highestPair?.info?.websites?.[0]?.url,
       bagsToken?.twitter || highestPair?.info?.socials?.find((s) => s.type === "twitter")?.url,
+      rawJupiterToken?.website,
+      rawJupiterToken?.twitter,
+      rawJupiterToken?.telegram,
       bagsToken?.description,
     ].filter(Boolean).length
     const ageHours = extractAgeHours([
+      rawJupiterToken?.firstPool?.createdAt,
+      rawJupiterToken?.createdAt,
       highestPair?.pairCreatedAt,
       bagsToken?.pairCreatedAt,
       bagsToken?.createdAt,
@@ -512,6 +641,20 @@ export async function POST(request: Request) {
     } else if (confidenceScore < 50) {
       signals.push("Scan confidence is limited because some data is still missing")
     }
+    if (rawJupiterToken?.isVerified) {
+      signals.push("Jupiter marks this token as verified")
+    } else if (rawJupiterToken && !rawJupiterToken.isVerified) {
+      signals.push("Jupiter has not verified this token yet")
+    }
+    if (strictList) {
+      signals.push("Token is included in Jupiter strict tagging")
+    }
+    if (suspicious) {
+      signals.push("Jupiter audit flagged suspicious token behavior")
+    }
+    if (mutableMetadata === true) {
+      signals.push("Token metadata remains mutable and can still be changed by the authority")
+    }
 
     // Intelligence Score = average of the 4 core parameters
     const score = clampScore(Math.round((qualityScore + momentumScore + confidenceScore + riskCap) / 4))
@@ -626,9 +769,75 @@ export async function POST(request: Request) {
         ageHours: ageHours,
         isPartialHolderData: isPartialHolderData,
         security: {
-          mintAuthorityDisabled: !mintAuthority,
-          freezeAuthorityDisabled: !freezeAuthority,
+          mintAuthorityDisabled,
+          freezeAuthorityDisabled,
           lpBurnProfile: lpBurnStatus,
+        },
+        verification: {
+          isVerified: rawJupiterToken?.isVerified ?? null,
+          strictList,
+          organicScore: rawJupiterToken?.organicScore ?? null,
+          organicScoreLabel: rawJupiterToken?.organicScoreLabel ?? null,
+          suspicious,
+          tags: rawJupiterToken?.tags ?? [],
+          launchpad: rawJupiterToken?.launchpad ?? null,
+          graduatedAt: rawJupiterToken?.graduatedAt ?? null,
+          updatedAt: rawJupiterToken?.updatedAt ?? null,
+        },
+        behavior: {
+          mutableMetadata,
+          honeypotRisk,
+          buyTaxPct,
+          sellTaxPct,
+          maxFeePct,
+          bundleWallets,
+          bundleHoldPct,
+          phishingWallets,
+          phishingHoldPct,
+          devBalancePct: rawJupiterToken?.audit?.devBalancePercentage ?? null,
+          devMints: rawJupiterToken?.audit?.devMints ?? null,
+        },
+        fees: {
+          totalFeeSol: bagsLifetimeFeesSol,
+          totalClaimedSol: bagsClaims.totalClaimedSol,
+          creatorCount: bagsCreators.length,
+          claimersCount: bagsClaims.claimersCount,
+          createdOn,
+        },
+        launch: {
+          launchType,
+          launchpad: rawJupiterToken?.launchpad ?? null,
+          initialLiquidity,
+          curveProgressPct,
+          firstMintTime: firstMintSnapshot.firstMintTime ?? rawJupiterToken?.createdAt ?? null,
+          firstMintTx: firstMintSnapshot.firstMintTx,
+          firstPoolTime: rawJupiterToken?.firstPool?.createdAt ?? (pairCreatedTimestamp ? new Date(pairCreatedTimestamp).toISOString() : null),
+          firstPoolId: rawJupiterToken?.firstPool?.id ?? poolAddress,
+          graduatedAt: rawJupiterToken?.graduatedAt ?? null,
+          poolDexes: rawGeckoPool?.dexes ?? [],
+          bagsPoolKey: pickString(bagsRecord, ["dbcPoolKey"]),
+          bagsConfigKey: pickString(bagsRecord, ["dbcConfigKey"]),
+        },
+        tokenInfo: {
+          decimals,
+          supply,
+          circulatingSupply,
+          tokenProgram,
+          mutableMetadata,
+          burned: isBurnt,
+          mintAuthority,
+          freezeAuthority,
+        },
+        platforms: {
+          bags: isBagsToken,
+          jupiter: Boolean(rawJupiterToken),
+          helius: Boolean(rawHeliusAsset),
+        },
+        tradingFlow: {
+          m5: rawJupiterToken?.stats5m ?? null,
+          h1: rawJupiterToken?.stats1h ?? null,
+          h6: rawJupiterToken?.stats6h ?? null,
+          h24: rawJupiterToken?.stats24h ?? null,
         },
         identity: {
           tokenMint: address,
@@ -663,6 +872,9 @@ export async function POST(request: Request) {
           whale: holderSnapshot.topHolderPct !== null ? "helius" : "unknown",
           creator: creatorBehavior.createdTokens !== null ? "helius" : creatorTokenBase !== null ? "bags" : "unknown",
           metadata: fallbackBagsToken ? "bags" : birdeyeToken ? "birdeye" : "unknown",
+          verification: rawJupiterToken ? "jupiter" : "unknown",
+          fees: bagsLifetimeFeesSol !== null ? "bags" : "unknown",
+          launch: (rawJupiterToken?.launchpad || bagsToken) ? "jupiter+bags" : "unknown",
         },
       }
     }
@@ -1464,6 +1676,368 @@ async function fetchHeliusCreatorBehavior(
   }
 }
 
+async function fetchBagsLaunchToken(address: string, bagsApiKey: string): Promise<Record<string, unknown> | null> {
+  if (!bagsApiKey) return null
+
+  const bagsUrl = "https://public-api-v2.bags.fm/api/v1/token-launch/feed"
+
+  try {
+    const bagsRes = await fetch(bagsUrl, {
+      method: "GET",
+      headers: { "x-api-key": bagsApiKey, "Content-Type": "application/json" },
+      next: { revalidate: 30 },
+    })
+
+    if (bagsRes.status === 429) {
+      console.error("[SCAN_ENGINE] Bags API Rate Limit (429) Triggered")
+      return null
+    }
+
+    if (!bagsRes.ok) return null
+
+    const rawBags = await bagsRes.json()
+    if (!rawBags || !Array.isArray(rawBags.response)) return null
+
+    const targetAddress = address.toLowerCase()
+    const found = rawBags.response.find((token: { tokenMint?: string }) => token.tokenMint?.toLowerCase() === targetAddress) || null
+
+    if (process.env.NODE_ENV === "development") {
+      console.log(`[SCAN_ENGINE] Bags API: Found=${!!found}`)
+    }
+
+    return found
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Bags API Error:", error)
+    return null
+  }
+}
+
+async function fetchBagsLifetimeFees(address: string, bagsApiKey: string): Promise<number | null> {
+  if (!bagsApiKey) return null
+
+  try {
+    const res = await fetch(`https://public-api-v2.bags.fm/api/v1/token-launch/lifetime-fees?tokenMint=${encodeURIComponent(address)}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "x-api-key": bagsApiKey, accept: "application/json" },
+    })
+
+    if (!res.ok) return null
+    const raw = await res.json().catch(() => null)
+    return parseLamportsToSol(raw?.response)
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Bags lifetime fees error:", error)
+    return null
+  }
+}
+
+async function fetchBagsCreators(address: string, bagsApiKey: string): Promise<BagsCreatorProfile[]> {
+  if (!bagsApiKey) return []
+
+  try {
+    const res = await fetch(`https://public-api-v2.bags.fm/api/v1/token-launch/creator/v3?tokenMint=${encodeURIComponent(address)}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "x-api-key": bagsApiKey, accept: "application/json" },
+    })
+
+    if (!res.ok) return []
+
+    const raw = await res.json().catch(() => null)
+    const rows = Array.isArray(raw?.response) ? raw.response : []
+
+    return rows
+      .map((entry: unknown): BagsCreatorProfile => {
+        const record = asRecord(entry)
+        return {
+          wallet: pickString(record, ["wallet"]),
+          provider: pickString(record, ["provider"]),
+          providerUsername: pickString(record, ["providerUsername", "twitterUsername", "bagsUsername", "username"]),
+          royaltyBps: pickNumber(record, ["royaltyBps"]),
+          isCreator: pickBoolean(record, ["isCreator"]) || false,
+        }
+      })
+      .filter((entry: BagsCreatorProfile) => Boolean(entry.wallet || entry.providerUsername))
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Bags creators error:", error)
+    return []
+  }
+}
+
+async function fetchBagsClaimStats(address: string, bagsApiKey: string): Promise<BagsClaimSnapshot> {
+  if (!bagsApiKey) {
+    return { totalClaimedSol: null, claimersCount: null }
+  }
+
+  try {
+    const res = await fetch(`https://public-api-v2.bags.fm/api/v1/token-launch/claim-stats?tokenMint=${encodeURIComponent(address)}`, {
+      method: "GET",
+      cache: "no-store",
+      headers: { "x-api-key": bagsApiKey, accept: "application/json" },
+    })
+
+    if (!res.ok) {
+      return { totalClaimedSol: null, claimersCount: null }
+    }
+
+    const raw = await res.json().catch(() => null)
+    const rows = Array.isArray(raw?.response) ? raw.response : []
+    let totalClaimedLamports = 0n
+    let hasClaims = false
+
+    for (const entry of rows) {
+      const record = asRecord(entry)
+      const claimed = parseBigIntLike(pickString(record, ["totalClaimed"]))
+      if (claimed !== null) {
+        totalClaimedLamports += claimed
+        hasClaims = true
+      }
+    }
+
+    return {
+      totalClaimedSol: hasClaims ? roundMoney(Number(totalClaimedLamports) / 1_000_000_000) : null,
+      claimersCount: rows.length,
+    }
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Bags claim stats error:", error)
+    return { totalClaimedSol: null, claimersCount: null }
+  }
+}
+
+async function fetchJupiterTokenSnapshot(address: string, jupiterApiKey: string): Promise<JupiterTokenSnapshot | null> {
+  try {
+    const headers: Record<string, string> = { accept: "application/json" }
+    if (jupiterApiKey) {
+      headers["x-api-key"] = jupiterApiKey
+    }
+
+    const res = await fetch(`https://api.jup.ag/tokens/v2/search?query=${encodeURIComponent(address)}`, {
+      method: "GET",
+      cache: "no-store",
+      headers,
+    })
+
+    if (!res.ok) {
+      if (res.status !== 401 && res.status !== 404) {
+        console.warn(`[SCAN_ENGINE] Jupiter token search failed with status ${res.status}`)
+      }
+      return null
+    }
+
+    const raw = await res.json().catch(() => null)
+    const rows = Array.isArray(raw) ? raw : []
+    const match = rows.find((entry) => normalizeValue(pickString(asRecord(entry), ["id"])) === normalizeValue(address))
+    const record = asRecord(match)
+    if (!record) return null
+
+    const audit = asRecord(record.audit)
+    const firstPool = asRecord(record.firstPool)
+
+    return {
+      id: pickString(record, ["id"]) || address,
+      name: pickString(record, ["name"]),
+      symbol: pickString(record, ["symbol"]),
+      icon: pickString(record, ["icon"]),
+      decimals: pickNumber(record, ["decimals"]),
+      circSupply: pickNumber(record, ["circSupply"]),
+      totalSupply: pickNumber(record, ["totalSupply"]),
+      tokenProgram: pickString(record, ["tokenProgram"]),
+      twitter: pickString(record, ["twitter"]),
+      telegram: pickString(record, ["telegram"]),
+      website: pickString(record, ["website"]),
+      dev: pickString(record, ["dev"]),
+      launchpad: pickString(record, ["launchpad"]),
+      partnerConfig: pickString(record, ["partnerConfig"]),
+      graduatedPool: pickString(record, ["graduatedPool"]),
+      graduatedAt: pickString(record, ["graduatedAt"]),
+      holderCount: pickNumber(record, ["holderCount"]),
+      fdv: pickNumber(record, ["fdv"]),
+      mcap: pickNumber(record, ["mcap"]),
+      usdPrice: pickNumber(record, ["usdPrice"]),
+      liquidity: pickNumber(record, ["liquidity"]),
+      createdAt: pickString(record, ["createdAt"]),
+      updatedAt: pickString(record, ["updatedAt"]),
+      mintAuthority: pickString(record, ["mintAuthority"]),
+      freezeAuthority: pickString(record, ["freezeAuthority"]),
+      organicScore: pickNumber(record, ["organicScore"]),
+      organicScoreLabel: pickString(record, ["organicScoreLabel"]),
+      isVerified: typeof record.isVerified === "boolean" ? record.isVerified : null,
+      tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === "string") : [],
+      firstPool: firstPool
+        ? {
+            id: pickString(firstPool, ["id"]),
+            createdAt: pickString(firstPool, ["createdAt"]),
+          }
+        : null,
+      audit: audit
+        ? {
+            isSus: pickBoolean(audit, ["isSus"]) || false,
+            mintAuthorityDisabled: pickBoolean(audit, ["mintAuthorityDisabled"]),
+            freezeAuthorityDisabled: pickBoolean(audit, ["freezeAuthorityDisabled"]),
+            topHoldersPercentage: pickNumber(audit, ["topHoldersPercentage"]),
+            devBalancePercentage: pickNumber(audit, ["devBalancePercentage"]),
+            devMints: pickNumber(audit, ["devMints"]),
+          }
+        : null,
+      stats5m: parseJupiterStatsWindow(asRecord(record.stats5m)),
+      stats1h: parseJupiterStatsWindow(asRecord(record.stats1h)),
+      stats6h: parseJupiterStatsWindow(asRecord(record.stats6h)),
+      stats24h: parseJupiterStatsWindow(asRecord(record.stats24h)),
+    }
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Jupiter token search error:", error)
+    return null
+  }
+}
+
+async function fetchHeliusFirstMintSnapshot(address: string, heliusApiKey: string): Promise<HeliusFirstMintSnapshot> {
+  if (!heliusApiKey) {
+    return { firstMintTime: null, firstMintTx: null }
+  }
+
+  try {
+    const limit = 1000
+    const maxPages = 8
+    let before: string | undefined
+    let oldestSignature: string | null = null
+    let oldestBlockTime: number | null = null
+
+    for (let page = 0; page < maxPages; page++) {
+      const config: Record<string, unknown> = { limit }
+      if (before) {
+        config.before = before
+      }
+
+      const res = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: `first-mint-${page}`,
+          method: "getSignaturesForAddress",
+          params: [address, config],
+        }),
+      })
+
+      if (!res.ok) break
+
+      const raw = await res.json().catch(() => null)
+      const rows = Array.isArray(raw?.result) ? raw.result : []
+      if (rows.length === 0) break
+
+      const oldestEntry = asRecord(rows[rows.length - 1])
+      oldestSignature = pickString(oldestEntry, ["signature"]) ?? oldestSignature
+      oldestBlockTime = pickNumber(oldestEntry, ["blockTime"]) ?? oldestBlockTime
+
+      if (rows.length < limit) break
+
+      before = pickString(oldestEntry, ["signature"]) || undefined
+      if (!before) break
+    }
+
+    if (oldestSignature && oldestBlockTime === null) {
+      oldestBlockTime = await fetchHeliusTransactionBlockTime(oldestSignature, heliusApiKey)
+    }
+
+    return {
+      firstMintTime: oldestBlockTime ? new Date(oldestBlockTime * 1000).toISOString() : null,
+      firstMintTx: oldestSignature,
+    }
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Helius first mint history error:", error)
+    return { firstMintTime: null, firstMintTx: null }
+  }
+}
+
+async function fetchHeliusTransactionBlockTime(signature: string, heliusApiKey: string): Promise<number | null> {
+  try {
+    const res = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "first-mint-tx",
+        method: "getTransaction",
+        params: [signature, { commitment: "finalized", encoding: "jsonParsed" }],
+      }),
+    })
+
+    if (!res.ok) return null
+
+    const raw = await res.json().catch(() => null)
+    return pickNumber(asRecord(raw?.result), ["blockTime"])
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] Helius transaction lookup error:", error)
+    return null
+  }
+}
+
+function parseJupiterStatsWindow(source: Record<string, unknown> | null): JupiterStatsWindow | null {
+  if (!source) return null
+
+  return {
+    priceChange: pickNumber(source, ["priceChange"]),
+    buyVolume: pickNumber(source, ["buyVolume"]),
+    sellVolume: pickNumber(source, ["sellVolume"]),
+    traders: pickNumber(source, ["numTraders"]),
+    buys: pickNumber(source, ["numBuys"]),
+    sells: pickNumber(source, ["numSells"]),
+    organicBuyers: pickNumber(source, ["numOrganicBuyers"]),
+    netBuyers: pickNumber(source, ["numNetBuyers"]),
+  }
+}
+
+function parseLamportsToSol(value: unknown): number | null {
+  const lamports = parseBigIntLike(typeof value === "string" ? value : typeof value === "number" ? String(value) : null)
+  if (lamports === null) return null
+  return roundMoney(Number(lamports) / 1_000_000_000)
+}
+
+function parseBigIntLike(value: string | null): bigint | null {
+  if (!value) return null
+
+  try {
+    return BigInt(value)
+  } catch {
+    return null
+  }
+}
+
+function formatLaunchType(value: string | null): string | null {
+  if (!value) return null
+  return value
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
+    .replace(/\b\w/g, (char) => char.toUpperCase())
+}
+
+function resolveLaunchOrigin(bagsRecord: Record<string, unknown> | null, jupiterLaunchpad: string | null): string | null {
+  const uri = pickString(bagsRecord, ["uri"])
+  if (uri) {
+    try {
+      return new URL(uri).origin
+    } catch {
+      // Ignore malformed URIs and fall through to known launch origins.
+    }
+  }
+
+  if (bagsRecord) {
+    return "https://bags.fm"
+  }
+
+  if (!jupiterLaunchpad) return null
+
+  const lower = jupiterLaunchpad.toLowerCase()
+  if (lower.includes("bags")) return "https://bags.fm"
+  if (lower.includes("pump")) return "https://pump.fun"
+  if (lower.includes("meteora")) return "https://meteora.ag"
+  if (lower.includes("jupiter")) return "https://jup.ag"
+
+  return formatLaunchType(jupiterLaunchpad)
+}
+
 function normalizeBirdeyeToken(
   overview: Record<string, unknown> | null,
   price: Record<string, unknown> | null,
@@ -1528,6 +2102,19 @@ function pickNumber(source: Record<string, unknown> | null, keys: string[]): num
     if (typeof raw === "string") {
       const parsed = Number(raw)
       if (Number.isFinite(parsed)) return parsed
+    }
+  }
+  return null
+}
+
+function pickBoolean(source: Record<string, unknown> | null, keys: string[]): boolean | null {
+  if (!source) return null
+  for (const key of keys) {
+    const raw = source[key]
+    if (typeof raw === "boolean") return raw
+    if (typeof raw === "string") {
+      if (raw.toLowerCase() === "true") return true
+      if (raw.toLowerCase() === "false") return false
     }
   }
   return null

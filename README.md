@@ -2,7 +2,7 @@
 
 **Scan smarter. Discover early. Trade with intelligence.**
 
-TokenSight AI is a real-time on-chain intelligence platform for Solana tokens. It aggregates data from multiple sources — Helius, DexScreener, Birdeye, GeckoTerminal, Bags API — and transforms it into actionable insights using a transparent scoring engine, security analysis, and AI-generated summaries.
+TokenSight AI is a real-time on-chain intelligence platform for Solana tokens. It aggregates data from multiple sources — Helius, DexScreener, Birdeye, GeckoTerminal, Bags API, Jupiter Tokens V2, and Meteora pool APIs — and transforms it into actionable insights using a transparent scoring engine, security analysis, liquidity intelligence, and AI-generated summaries.
 
 ---
 
@@ -40,6 +40,10 @@ The heart of TokenSight AI. Paste any Solana token address and get a full intell
 - **Token Logo & Name** — Logo, name, and symbol displayed at the top
 - **Animated Score Ring** — Color-coded (red ≤30, yellow 31–59, blue 60–84, green 85+) with smooth fill animation
 - **Security Badges** — Mint authority, Freeze authority, and LP burn profile (green = safe, red = risky)
+- **Trust Signals** — Jupiter verification status, strict-list tag, organic score, suspicious audit flag, mutable metadata warning, and protocol-specific fee or dev-balance fields only when they truly exist
+- **Trading Flow** — 5m / 1h / 6h / 24h buy volume, sell volume, trader count, organic buyer count, and price-change windows from Jupiter Tokens V2
+- **Fees & Launch Metadata** — Bags lifetime fees, creator claim stats, launch origin, first mint time / first mint tx, first pool time, launch-type details, and dex hints when available
+- **Liquidity Intelligence** — Meteora DLMM + DAMM v2 liquidity score, total liquidity, protocol split, near-price liquidity coverage, reserve-based price impact estimates, and execution risk badges
 - **Intelligence Signals** — AI-generated bullet points with severity-coded icons
 - **Market Metrics** — 7 cards: Price, Liquidity, Volume (24h), Holders, Top 10 Concentration, Creator Tokens, Market Cap (K/M/B formatting)
 - **Holder Breakdown** — Top 10 wallets with percentage bars, truncated addresses, and copy buttons
@@ -49,9 +53,9 @@ The heart of TokenSight AI. Paste any Solana token address and get a full intell
 - **AI Summary** — Natural-language analysis with keyword highlighting (green = bullish, red = bearish)
 - **Live Chart** — Embedded DexScreener price chart
 - **Swap Widget** — Jupiter-powered swaps with MEV protection, without leaving the page
-- **Quick Actions** — One-click add to portfolio, set alert, or view on explorer
+- **Quick Actions** — Add to portfolio and alert actions stay visible for all users; guests get an inline login prompt anchored above the action bar when they click
 
-**Layout:** 3-row grid with glowing widget borders. Fully responsive — stacks vertically on mobile.
+**Layout:** Multi-section scan dashboard with protocol panels, liquidity intelligence, execution tools, and quick actions. Fully responsive — stacks vertically on mobile.
 
 ### Risk Labels
 
@@ -160,11 +164,27 @@ A weighted system that measures analyst skill:
 | **Blockchain Data** | Helius RPC (getAsset, getTokenAccounts) |
 | **Market Data** | DexScreener (pairs, fdv, socials) |
 | **Price Data** | Birdeye (price, overview, extensions) |
-| **Pool Data** | GeckoTerminal (liquidity, volume, market cap fallback) |
+| **Pool Data** | GeckoTerminal (liquidity, volume, market cap fallback) + Meteora DLMM / DAMM v2 |
 | **Token Source** | Bags API (metadata, trending) |
+| **Verification & Flow** | Jupiter Tokens V2 |
 | **Swaps** | Jupiter Aggregator |
 | **Notifications** | Telegram Bot API |
 | **Theming** | next-themes (dark / light mode) |
+
+---
+
+## Environment Setup
+
+Create a local `.env.local` from `.env.example` and fill in the providers you want enabled.
+
+**Scan-specific providers**
+
+- **BAGS_API_KEY** — Enables Bags launch feed, lifetime fee analytics, creator analytics, and claim stats
+- **HELIUS_API_KEY** — Enables `getAsset`, holder snapshots, creator behavior search, and first mint history lookup
+- **JUPITER_API_KEY** — Enables Jupiter Tokens V2 verification, organic score, trading-flow windows, strict tags, and audit signals
+- **BIRDEYE_API_KEY** — Enables Birdeye price and token overview enrichment
+
+The scanner degrades gracefully when one provider is missing, but the full scan layout is designed around all four keys being present.
 
 ---
 
