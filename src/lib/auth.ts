@@ -54,6 +54,26 @@ function isMissingColumnError(error: unknown, columnName: string) {
   );
 }
 
+async function findExistingUserByField(field: "privy_id" | "wallet" | "email" | "twitter_handle", value: string) {
+  const { data, error } = await supabaseAdmin
+    .from("users")
+    .select("*")
+    .eq(field, value)
+    .order("created_at", { ascending: true })
+    .limit(2);
+
+  if (error) {
+    console.error(`[AUTH] Failed user lookup by ${field}:`, error);
+    return null;
+  }
+
+  if ((data || []).length > 1) {
+    console.warn(`[AUTH] Duplicate user rows found for ${field}. Reusing the oldest record to avoid account drift.`);
+  }
+
+  return data?.[0] || null;
+}
+
 function resolvePrivyIdentity(privyUser: {
   email?: { address?: string | null };
   wallet?: { address?: string | null };
@@ -112,23 +132,19 @@ export async function getOrCreateUser(userData: {
     let existingUser = null;
 
     if (privyId) {
-      const { data } = await supabaseAdmin.from("users").select("*").eq("privy_id", privyId).single();
-      existingUser = data;
+      existingUser = await findExistingUserByField("privy_id", privyId);
     }
 
     if (!existingUser && wallet) {
-      const { data } = await supabaseAdmin.from("users").select("*").eq("wallet", wallet).single();
-      existingUser = data;
+      existingUser = await findExistingUserByField("wallet", wallet);
     }
 
     if (!existingUser && email) {
-      const { data } = await supabaseAdmin.from("users").select("*").eq("email", email).single();
-      existingUser = data;
+      existingUser = await findExistingUserByField("email", email);
     }
 
     if (!existingUser && twitterHandle) {
-      const { data } = await supabaseAdmin.from("users").select("*").eq("twitter_handle", twitterHandle).single();
-      existingUser = data;
+      existingUser = await findExistingUserByField("twitter_handle", twitterHandle);
     }
 
     if (existingUser) {

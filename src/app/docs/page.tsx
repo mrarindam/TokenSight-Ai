@@ -4,7 +4,7 @@ import { useEffect, useState } from "react"
 import Link from "next/link"
 import {
   BookOpen, Scan, Target, Bell, Trophy, History, Bot,
-  Rocket, Cpu, Eye, Crosshair, ArrowRight, ChevronRight, Menu, X, UserCircle
+  Rocket, Cpu, Eye, Crosshair, ArrowRight, ChevronRight, Menu, X, UserCircle, MessageSquareText
 } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -18,6 +18,7 @@ const SECTIONS = [
   { id: "telegram", label: "Telegram Bot", icon: Bot },
   { id: "profile", label: "Your Profile", icon: UserCircle },
   { id: "history", label: "Scan History", icon: History },
+  { id: "sightai", label: "Sight AI", icon: MessageSquareText },
   { id: "tech", label: "Tech Stack", icon: Cpu },
   { id: "roadmap", label: "Roadmap", icon: Crosshair },
 ] as const
@@ -312,7 +313,7 @@ export default function DocsPage() {
           <SectionCard id="telegram" icon={Bot} title="Telegram Bot"
             iconColor="bg-gradient-to-br from-blue-500/20 to-cyan-500/20 border-blue-500/20 shadow-blue-500/10 text-blue-400"
             accentColor="via-blue-500/50">
-            <p>Connect your Telegram account to receive scan results and price alerts directly in your chat.</p>
+            <p>Connect your Telegram account to receive scan results and price alerts directly in your chat via <a href="https://t.me/TokenSightai_bot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline font-semibold">@TokenSightai_bot</a>.</p>
             <h3 className="font-bold text-foreground pt-2">Current features</h3>
             <ul className="list-disc pl-5 space-y-1">
               <li><strong className="text-foreground">Alert notifications</strong> — Get instant Telegram messages when your price alerts trigger.</li>
@@ -320,9 +321,10 @@ export default function DocsPage() {
             </ul>
             <h3 className="font-bold text-foreground pt-2">How to link</h3>
             <ol className="list-decimal pl-5 space-y-1">
-              <li>Go to <strong className="text-foreground">Settings → Telegram</strong>.</li>
-              <li>Click the link button to connect your Telegram account.</li>
-              <li>Confirm the connection in Telegram.</li>
+              <li>Open <a href="https://t.me/TokenSightai_bot" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">@TokenSightai_bot</a> in Telegram and tap <strong className="text-foreground">/start</strong>.</li>
+              <li>The bot will reply with your <strong className="text-foreground">Telegram ID</strong>.</li>
+              <li>Go to <strong className="text-foreground">Settings → Telegram</strong> on TokenSight AI.</li>
+              <li>Paste your Telegram ID and click <strong className="text-foreground">Link</strong>.</li>
               <li>You will now receive notifications for triggered alerts.</li>
             </ol>
             <p className="text-xs text-muted-foreground/50">More Telegram bot features are actively being developed — including inline scanning and portfolio summaries.</p>
@@ -385,6 +387,46 @@ export default function DocsPage() {
             </ul>
           </SectionCard>
 
+          <SectionCard id="sightai" icon={MessageSquareText} title="Sight AI — Your TokenSight Copilot"
+            iconColor="bg-gradient-to-br from-indigo-500/20 to-violet-500/20 border-indigo-500/20 shadow-indigo-500/10 text-indigo-400"
+            accentColor="via-indigo-500/50">
+            <p>
+              <strong className="text-foreground">Sight AI</strong> is the built-in AI assistant that lives inside TokenSight AI.
+              It appears as a floating chat bubble on every page, giving you instant, conversational access to the platform’s
+              intelligence engine without leaving your current workflow.
+            </p>
+
+            <h3 className="font-bold text-foreground pt-2">What Sight AI can do</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className="text-foreground">Token lookup</strong> — Ask about any Solana token by name or contract address. Sight AI fetches real-time price, liquidity, volume, market cap, holder count, and exchange listings.</li>
+              <li><strong className="text-foreground">Full scan summaries</strong> — Request a complete scan and get the Intelligence Score, risk label, security badges, and AI-generated signals summarized in chat.</li>
+              <li><strong className="text-foreground">Specific metrics</strong> — Ask for just the price, liquidity, holders, or any single metric and get a focused answer.</li>
+              <li><strong className="text-foreground">Market &amp; exchange links</strong> — Ask where to buy or trade a token and get direct links to DexScreener, Birdeye, Jupiter, and more.</li>
+              <li><strong className="text-foreground">Alert management</strong> — Create price-drop, price-rise, or score-change alerts directly from chat.</li>
+              <li><strong className="text-foreground">Profile updates</strong> — Change your display name or avatar by telling Sight AI.</li>
+              <li><strong className="text-foreground">Platform guidance</strong> — Ask how features work, what the leaderboard tracks, how streaks are calculated, or anything from the docs.</li>
+            </ul>
+
+            <h3 className="font-bold text-foreground pt-2">How it works</h3>
+            <ol className="list-decimal pl-5 space-y-1">
+              <li>Click the <strong className="text-foreground">Sight AI</strong> bubble in the bottom-right corner of any page.</li>
+              <li>Type a question or paste a token address.</li>
+              <li>Sight AI determines intent — token data, platform help, or an action — and responds with live data, cards, and links.</li>
+              <li>For token queries, it pulls data from Birdeye, DexScreener, GeckoTerminal, and the scan engine in real time.</li>
+              <li>For open-ended questions, it uses OpenRouter (GPT-4o‑mini) grounded in TokenSight context so answers stay accurate.</li>
+            </ol>
+
+            <h3 className="font-bold text-foreground pt-2">Design principles</h3>
+            <ul className="list-disc pl-5 space-y-1">
+              <li><strong className="text-foreground">Grounded in live data</strong> — Every token answer comes from the same data pipeline as the scanner, not from the AI model’s training data.</li>
+              <li><strong className="text-foreground">No hallucination</strong> — If data is unavailable, Sight AI says so instead of making up numbers.</li>
+              <li><strong className="text-foreground">Action-capable</strong> — Alerts and profile changes execute server-side; Sight AI confirms only after the action actually succeeds.</li>
+              <li><strong className="text-foreground">Stateless per session</strong> — Chat resets on page reload for privacy. No conversation history is stored.</li>
+            </ul>
+
+            <p className="text-xs text-muted-foreground/50">Sight AI is available to all users. Some actions (alerts, profile edits) require being logged in.</p>
+          </SectionCard>
+
           <SectionCard id="tech" icon={Cpu} title="Tech Stack & Data Sources"
             iconColor="bg-gradient-to-br from-rose-500/20 to-orange-500/20 border-rose-500/20 shadow-rose-500/10 text-rose-400"
             accentColor="via-rose-500/50">
@@ -396,6 +438,8 @@ export default function DocsPage() {
                 { name: "DexScreener", desc: "Liquidity, volume, and pair analytics" },
                 { name: "Jupiter", desc: "Swap routing and token pricing" },
                 { name: "Bags", desc: "Early-stage token discovery" },
+                { name: "GeckoTerminal", desc: "Pool liquidity and market cap fallback" },
+                { name: "OpenRouter", desc: "AI model routing for Sight AI assistant" },
                 { name: "Next.js 14", desc: "Full-stack React framework" },
                 { name: "Supabase", desc: "Database, auth, and real-time backend" },
                 { name: "Tailwind CSS", desc: "Utility-first styling" },

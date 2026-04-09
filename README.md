@@ -2,7 +2,7 @@
 
 **Scan smarter. Discover early. Trade with intelligence.**
 
-TokenSight AI is a real-time on-chain intelligence platform for Solana tokens. It aggregates data from multiple sources — Helius, DexScreener, Birdeye, Bags API — and transforms it into actionable insights using a transparent scoring engine, security analysis, and AI-generated summaries.
+TokenSight AI is a real-time on-chain intelligence platform for Solana tokens. It aggregates data from multiple sources — Helius, DexScreener, Birdeye, GeckoTerminal, Bags API — and transforms it into actionable insights using a transparent scoring engine, security analysis, and AI-generated summaries.
 
 ---
 
@@ -107,7 +107,7 @@ Competitive analyst rankings.
 
 ### Telegram Integration
 
-Link your Telegram account for instant notifications.
+Link your Telegram account for instant notifications via [@TokenSightai_bot](https://t.me/TokenSightai_bot).
 
 - Alert triggers sent directly to Telegram
 - Bot webhook integration
@@ -121,6 +121,20 @@ Connect your Phantom wallet for Solana-native authentication.
 
 - Wallet-based login (alongside Google / GitHub / credentials)
 - Link/unlink wallet from profile settings
+
+---
+
+### Sight AI — Built-in AI Assistant
+
+Sight AI is the conversational copilot that lives inside TokenSight AI as a floating chat bubble on every page.
+
+- **Token lookup** — Ask about any Solana token by name or address for real-time price, liquidity, volume, market cap, and more
+- **Full scan summaries** — Request a complete scan and get the Intelligence Score, risk label, and signals in chat
+- **Alert management** — Create and manage price alerts directly from the chat
+- **Profile updates** — Change your display name or avatar conversationally
+- **Platform guidance** — Ask how any feature works and get answers grounded in the docs
+- **Live data, no hallucination** — Every answer is backed by the same data pipeline as the scanner
+- **Powered by OpenRouter (GPT-4o-mini)** — Fast, accurate, and context-aware responses
 
 ---
 
@@ -142,10 +156,11 @@ A weighted system that measures analyst skill:
 | **Styling** | Tailwind CSS + shadcn/ui |
 | **Auth** | Privy (Google, GitHub, X, Email OTP, Wallet) |
 | **Database** | Supabase (PostgreSQL) |
-| **AI Engine** | Groq (Llama) |
+| **AI Engine** | OpenRouter (GPT-4o-mini) — powers Sight AI assistant |
 | **Blockchain Data** | Helius RPC (getAsset, getTokenAccounts) |
 | **Market Data** | DexScreener (pairs, fdv, socials) |
 | **Price Data** | Birdeye (price, overview, extensions) |
+| **Pool Data** | GeckoTerminal (liquidity, volume, market cap fallback) |
 | **Token Source** | Bags API (metadata, trending) |
 | **Swaps** | Jupiter Aggregator |
 | **Notifications** | Telegram Bot API |
@@ -166,7 +181,7 @@ A weighted system that measures analyst skill:
 
 ## Platform Scope
 
-TokenSight AI scans **any Solana token** — not limited to a single ecosystem. Data is aggregated from Helius, DexScreener, Birdeye, and Bags API for maximum coverage.
+TokenSight AI scans **any Solana token** — not limited to a single ecosystem. Data is aggregated from Helius, DexScreener, Birdeye, GeckoTerminal, and Bags API for maximum coverage.
 
 ---
 

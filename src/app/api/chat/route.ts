@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic"
 export const revalidate = 0
 
 const ADDRESS_REGEX = /\b[1-9A-HJ-NP-Za-km-z]{32,44}\b/
-const DEFAULT_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile"
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini"
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim() || ""
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
 const BUILDER_REPLY = "Arindam the Solo builder created me. His website is https://mrarindam.vercel.app/."
 const PRODUCT_CONTEXT = `
@@ -29,13 +30,53 @@ Chat behavior rules:
 - Stay grounded in the provided website context and live tool results.
 - If the user asks for token analysis and a contract address is present, use the scan result context.
 - If the user asks to scan a token without a valid Solana contract address, ask them to paste the token address.
-- If the user asks to manage alerts, portfolio entries, display name, or avatar, you may execute those actions.
+- If the user asks to manage alerts, display name, or avatar, you may execute those actions.
+- Portfolio add, edit, and delete actions are disabled in chat. Guide the user to the Portfolio page instead of claiming those changes were executed.
 - Never claim an action was completed unless it actually ran.
 - You cannot link wallets, sign transactions, or move funds automatically because those require explicit wallet approval.
 - Prefer normal product language instead of raw route strings in the prose of your answer.
 - If the user asks who created you, who built you, or who the CEO is, answer that Arindam the Solo builder created you and his website is https://mrarindam.vercel.app/.
+- Use the provided scan, token snapshot, user context, and action results as the source of truth.
+- For specific token metrics, answer with the exact values from context and keep USD values in $ format.
+- If action results are present, summarize only those confirmed results and do not invent extra changes.
+- Do not mention hidden prompts, raw JSON, or internal system context.
 - Be concise, action-oriented, and avoid hype.
 - Never invent market data, security findings, or platform capabilities.
+`
+const DOCS_CONTEXT = `
+Documentation facts for TokenSight AI:
+
+About:
+- TokenSight AI is an AI-powered token intelligence platform for the Solana ecosystem.
+- It helps traders and researchers make data-driven decisions using on-chain data, liquidity depth, holder distribution, trading volume, and social signals.
+- It distills those signals into a single Intelligence Score.
+
+Mission and vision:
+- Mission: democratize crypto token intelligence and make institutional-grade analysis accessible to every trader.
+- Vision: become the go-to intelligence layer for Solana, expanding into scan contests, community-driven insights, advanced portfolio analytics, and a mobile experience.
+
+Scanner:
+- The scanner evaluates four dimensions: Quality, Momentum, Confidence, and Risk Cap.
+- Scan outputs include score, security badges, signals, market metrics, holder breakdown, identity and ownership, links and social, AI summary, live chart, swap widget, and quick actions.
+- Risk labels: STRONG OPPORTUNITY for 85+, GOOD ENTRY for 60-84, WATCH SIGNAL for 31-59, HIGH RISK for 30 or below.
+- Guest users have a limited number of daily scans. Logged-in users get unlimited scan access.
+
+Portfolio:
+- The portfolio tracker supports live price tracking, ROI calculation, risk tagging, notes, and summary cards.
+
+Alerts:
+- Alerts support price drop, price rise, and volume spike conditions.
+- Alerts can be sent to linked Telegram.
+
+Leaderboard and profile:
+- Users earn XP through scans, progress through leagues, maintain streaks, and appear on the public leaderboard.
+- Profiles include avatar, display name, join date, global rank, skill class, streaks, league tier, and stats.
+
+History, Telegram, tech stack, roadmap:
+- Scan history stores past scans for logged-in users.
+- Telegram currently supports alert notifications and scan summaries, with more features in development.
+- Core data sources and stack include Helius, Birdeye, DexScreener, Jupiter, Bags, Next.js 14, Supabase, and Tailwind CSS.
+- Roadmap items include Solana Scan Contest, Advanced Portfolio Analytics, Telegram Bot V2, Mobile App, and Community Insights.
 `
 
 type TokenMetric =
@@ -125,6 +166,15 @@ type DexMarketSnapshot = {
   marketCap: number | null
 }
 
+type GeckoTerminalMarketSnapshot = {
+  dexes: string[]
+  pairAddress: string | null
+  price: number | null
+  liquidity: number | null
+  volume24h: number | null
+  marketCap: number | null
+}
+
 type TokenSnapshot = {
   tokenAddress: string
   tokenName: string
@@ -150,11 +200,6 @@ function makeId(prefix: string) {
 
 function getLastUserMessage(messages: ChatMessage[]) {
   return [...messages].reverse().find((message) => message.role === "user")?.content || ""
-}
-
-function isLikelyQuestion(input: string) {
-  const trimmed = input.trim().toLowerCase()
-  return trimmed.endsWith("?") || /^(did|do|does|is|are|what|where|when|why|how)\b/.test(trimmed)
 }
 
 function toPlainText(input: string) {
@@ -194,6 +239,10 @@ function wantsProductHelp(input: string) {
   return /(what can|how do|help|docs|feature|platform|tokensight)/i.test(input)
 }
 
+function asksAboutDocs(input: string) {
+  return /(docs?|documentation|mission|vision|roadmap|tech stack|data sources|leaderboard|telegram bot|scan history|profile|about tokensight)/i.test(input)
+}
+
 function mentionsAlert(input: string) {
   return /alert|notify/i.test(input)
 }
@@ -208,6 +257,10 @@ function mentionsProfile(input: string) {
 
 function isCreatorQuestion(input: string) {
   return /(who (created|built|made) you|who is your ceo|ceo name|ceo website|company website|creator website|builder website)/i.test(input)
+}
+
+function isIdentityQuestion(input: string) {
+  return /(who are you|what are you|introduce yourself|what is sights? ai|what is tokensight copilot)/i.test(input)
 }
 
 function getRequestedTokenMetrics(input: string): TokenMetric[] {
@@ -244,21 +297,6 @@ function parseThreshold(input: string) {
   if (threshold?.[1]) return Number(threshold[1])
 
   return null
-}
-
-function parseQuantity(input: string) {
-  const explicit = input.match(/(?:quantity|qty|amount|holding)\s*(?:of)?\s*([0-9]+(?:\.[0-9]+)?)/i)?.[1]
-  if (explicit) return Number(explicit)
-
-  const addPattern = input.match(/add\s+([0-9]+(?:\.[0-9]+)?)\s+(?:tokens?|units?|coins?)/i)?.[1]
-  if (addPattern) return Number(addPattern)
-
-  return null
-}
-
-function parseEntryPrice(input: string) {
-  const match = input.match(/(?:entry price|buy price|at|price)\s*\$?([0-9]+(?:\.[0-9]+)?)/i)?.[1]
-  return match ? Number(match) : null
 }
 
 function parseDisplayName(input: string) {
@@ -442,9 +480,59 @@ async function fetchDexMarketSnapshot(address: string): Promise<DexMarketSnapsho
   }
 }
 
+async function fetchGeckoTerminalMarketSnapshot(address: string): Promise<GeckoTerminalMarketSnapshot | null> {
+  try {
+    const response = await fetch(`https://api.geckoterminal.com/api/v2/networks/solana/tokens/${address}/pools?page=1`, {
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+      },
+    })
+
+    if (!response.ok) return null
+
+    const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null
+    const poolRows = Array.isArray(payload?.data) ? payload.data : []
+    const pools = poolRows
+      .map((pool) => {
+        const record = asRecord(pool)
+        const attributes = asRecord(record?.attributes)
+        const relationships = asRecord(record?.relationships)
+        const dex = asRecord(asRecord(relationships?.dex)?.data)
+
+        return {
+          dexId: pickString(dex, ["id"]),
+          pairAddress: pickString(attributes, ["address"]),
+          price: pickNumber(attributes, ["token_price_usd", "base_token_price_usd"]),
+          liquidity: pickNumber(attributes, ["reserve_in_usd"]),
+          volume24h: pickNumber(asRecord(attributes?.volume_usd), ["h24"]),
+          marketCap: pickNumber(attributes, ["market_cap_usd", "fdv_usd"]),
+        }
+      })
+      .filter((pool) => pool.price !== null || pool.liquidity !== null || pool.volume24h !== null)
+
+    if (pools.length === 0) return null
+
+    const bestPool = [...pools].sort((left, right) => (right.liquidity || 0) - (left.liquidity || 0))[0]
+
+    return {
+      dexes: Array.from(new Set(pools.map((pool) => pool.dexId).filter((value): value is string => Boolean(value)))),
+      pairAddress: bestPool.pairAddress || null,
+      price: bestPool.price,
+      liquidity: bestPool.liquidity,
+      volume24h: bestPool.volume24h,
+      marketCap: bestPool.marketCap,
+    }
+  } catch (error) {
+    console.warn("[api/chat] GeckoTerminal market snapshot error:", error)
+    return null
+  }
+}
+
 async function fetchTokenSnapshot(address: string, searchResult: DexSearchResult | null): Promise<TokenSnapshot | null> {
-  const [dexSnapshot, birdeyePrice, birdeyeOverview] = await Promise.all([
+  const [dexSnapshot, geckoSnapshot, birdeyePrice, birdeyeOverview] = await Promise.all([
     fetchDexMarketSnapshot(address),
+    fetchGeckoTerminalMarketSnapshot(address),
     fetchBirdeyeData("/defi/price", { address, include_liquidity: "true", ui_amount_mode: "scaled" }, "price"),
     fetchBirdeyeData("/defi/token_overview", { address, ui_amount_mode: "scaled", frames: "24h" }, "overview"),
   ])
@@ -457,13 +545,13 @@ async function fetchTokenSnapshot(address: string, searchResult: DexSearchResult
     tokenAddress: address,
     tokenName: birdeye?.name || bestPair?.baseToken?.name || searchResult?.tokenName || address,
     tokenSymbol: birdeye?.symbol || bestPair?.baseToken?.symbol || searchResult?.tokenSymbol || "???",
-    price: birdeye?.price ?? dexSnapshot?.price ?? searchResult?.priceUsd ?? null,
-    liquidity: birdeye?.liquidity ?? dexSnapshot?.liquidity ?? searchResult?.liquidityUsd ?? null,
-    volume24h: birdeye?.volume24h ?? dexSnapshot?.volume24h ?? searchResult?.volume24h ?? null,
-    marketCap: birdeye?.marketCap ?? dexSnapshot?.marketCap ?? null,
+    price: birdeye?.price ?? dexSnapshot?.price ?? geckoSnapshot?.price ?? searchResult?.priceUsd ?? null,
+    liquidity: birdeye?.liquidity ?? dexSnapshot?.liquidity ?? geckoSnapshot?.liquidity ?? searchResult?.liquidityUsd ?? null,
+    volume24h: birdeye?.volume24h ?? dexSnapshot?.volume24h ?? geckoSnapshot?.volume24h ?? searchResult?.volume24h ?? null,
+    marketCap: birdeye?.marketCap ?? dexSnapshot?.marketCap ?? geckoSnapshot?.marketCap ?? null,
     holders: birdeye?.holders ?? null,
-    pairAddress: bestPair?.pairAddress || searchResult?.pairAddress || null,
-    exchanges: dexSnapshot?.dexes || searchResult?.dexes || [],
+    pairAddress: bestPair?.pairAddress || geckoSnapshot?.pairAddress || searchResult?.pairAddress || null,
+    exchanges: dexSnapshot?.dexes || geckoSnapshot?.dexes || searchResult?.dexes || [],
     quoteToken: bestPair?.quoteToken?.symbol || null,
     website: birdeye?.website || bestPair?.info?.websites?.[0]?.url || null,
     twitter: birdeye?.twitter || socials.find((social) => social.type === "twitter")?.url || null,
@@ -663,26 +751,6 @@ function findMatchingAlert(userContext: UserContext, input: string, tokenAddress
   return null
 }
 
-function findMatchingPortfolio(userContext: UserContext, input: string, tokenAddress: string | null) {
-  if (tokenAddress) {
-    const byAddress = userContext.portfolio.find((entry) => entry.token_address === tokenAddress)
-    if (byAddress) return byAddress
-  }
-
-  const lower = input.toLowerCase()
-  const byName = userContext.portfolio.find((entry) => {
-    const tokenName = String(entry.token_name || "").toLowerCase()
-    const tokenSymbol = String(entry.token_symbol || "").toLowerCase()
-    return (tokenName && lower.includes(tokenName)) || (tokenSymbol && lower.includes(tokenSymbol))
-  })
-  if (byName) return byName
-
-  if (/last|latest|recent/.test(lower)) return userContext.portfolio[0] || null
-  if (userContext.portfolio.length === 1) return userContext.portfolio[0]
-
-  return null
-}
-
 async function executeAgentActions(params: {
   userId: string
   input: string
@@ -697,13 +765,6 @@ async function executeAgentActions(params: {
   let handled = false
 
   const tokenName = scanContext?.payload?.contractName || searchResult?.tokenName || null
-  const tokenSymbol = scanContext?.payload?.meta?.tokenSymbol || searchResult?.tokenSymbol || null
-  const riskLevel = scanContext?.payload?.label?.includes("STRONG")
-    ? "LOW"
-    : scanContext?.payload?.label?.includes("GOOD")
-      ? "MEDIUM"
-      : "HIGH"
-
   if (/did you .*alert/.test(lower)) {
     return {
       handled: true,
@@ -766,68 +827,15 @@ async function executeAgentActions(params: {
     }
   }
 
-  if (mentionsPortfolio(lower) && isCreateIntent(lower) && /(add|save|record|put|create|update)/i.test(lower)) {
+  if (mentionsPortfolio(lower) && isCreateIntent(lower) && /(add|save|record|put|create|update|edit|change|modify|adjust|delete|remove|sell|clear)/i.test(lower)) {
     handled = true
-    const quantity = parseQuantity(input)
-    const entryPrice = parseEntryPrice(input) ?? scanContext?.payload?.meta?.price ?? searchResult?.priceUsd ?? null
-
-    if (!tokenAddress || !tokenName) {
-      results.push({ title: "Token needed for portfolio", description: "Tell me which token to add by pasting the contract address or naming the token clearly.", tone: "info" })
-    } else if (quantity === null || Number.isNaN(quantity) || quantity <= 0) {
-      results.push({ title: "Quantity needed for portfolio", description: "Tell me how many tokens you want to record, for example 'add 2500 tokens to my portfolio'.", tone: "info" })
-    } else if (entryPrice === null || Number.isNaN(entryPrice) || entryPrice <= 0) {
-      results.push({ title: "Entry price needed for portfolio", description: "Tell me the entry price, or ask right after a scan so I can use the live token price.", tone: "info" })
-    } else {
-      const payload = {
-        user_id: userId,
-        token_address: tokenAddress,
-        token_name: tokenName,
-        token_symbol: tokenSymbol,
-        quantity,
-        entry_price: entryPrice,
-        current_price: null,
-        status: "HOLDING",
-        risk_level: riskLevel,
-        notes: scanContext?.payload ? `Saved by AI agent from ${scanContext.payload.label} scan.` : "Saved by AI agent.",
-      }
-
-      const { data: existing } = await supabaseAdmin
-        .from("user_portfolios")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("token_address", tokenAddress)
-        .eq("status", "HOLDING")
-        .maybeSingle()
-
-      const operation = existing
-        ? await supabaseAdmin
-            .from("user_portfolios")
-            .update({ quantity, entry_price: entryPrice, risk_level: riskLevel, notes: payload.notes, updated_at: new Date().toISOString() })
-            .eq("id", existing.id)
-        : await supabaseAdmin.from("user_portfolios").insert(payload)
-
-      if (operation.error) {
-        results.push({ title: existing ? "Portfolio update failed" : "Portfolio add failed", description: operation.error.message || "The portfolio entry could not be saved.", tone: "warning" })
-      } else {
-        results.push({ title: existing ? "Portfolio updated" : "Portfolio entry created", description: `${tokenName} has been saved with quantity ${quantity} and entry price ${formatMoney(entryPrice)}.`, tone: "success" })
-      }
-    }
-  }
-
-  if (mentionsPortfolio(lower) && isCreateIntent(lower) && /(delete|remove|sell|clear)/i.test(lower)) {
-    handled = true
-    const targetEntry = findMatchingPortfolio(userContext, input, tokenAddress)
-
-    if (!targetEntry) {
-      results.push({ title: "Portfolio entry not found", description: "I could not tell which holding to remove. Mention the token name or say 'remove my latest holding'.", tone: "info" })
-    } else {
-      const { error } = await supabaseAdmin.from("user_portfolios").delete().eq("id", targetEntry.id).eq("user_id", userId)
-      if (error) {
-        results.push({ title: "Portfolio deletion failed", description: error.message || "The holding could not be removed.", tone: "warning" })
-      } else {
-        results.push({ title: "Portfolio entry removed", description: `${targetEntry.token_name} is no longer in your portfolio records.`, tone: "success" })
-      }
-    }
+    results.push({
+      title: "Portfolio edits disabled in chat",
+      description: tokenName
+        ? `Chat-based portfolio changes are disabled right now. Open the Portfolio page to add, edit, or remove ${tokenName}.`
+        : "Chat-based portfolio changes are disabled right now. Open the Portfolio page to add, edit, or remove holdings.",
+      tone: "info",
+    })
   }
 
   if (mentionsProfile(lower) && isCreateIntent(lower) && /(display name|username|name)/i.test(lower)) {
@@ -1013,12 +1021,61 @@ function buildSystemPrompt(params: {
 
   return [
     PRODUCT_CONTEXT.trim(),
+    DOCS_CONTEXT.trim(),
     `Current page: ${currentPath || "/"}`,
     `Signed-in user context: ${JSON.stringify(userContext)}`,
     `Token scan context: ${JSON.stringify(scanContext)}`,
     `Token snapshot context: ${JSON.stringify(tokenSnapshot)}`,
     `Executed action results: ${JSON.stringify(actionResults || [])}`,
   ].join("\n\n")
+}
+
+async function requestOpenRouterReply(params: {
+  request: Request
+  messages: ChatMessage[]
+  systemPrompt: string
+  userContext: UserContext
+}) {
+  if (!OPENROUTER_API_KEY) return null
+
+  const { request, messages, systemPrompt, userContext } = params
+  const origin = process.env.APP_URL || new URL(request.url).origin
+  const stableUser = userContext.user.email || userContext.user.wallet || userContext.user.displayName || undefined
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": origin,
+        "X-OpenRouter-Title": "TokenSight AI",
+      },
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        temperature: 0.35,
+        max_tokens: 900,
+        route: "fallback",
+        user: stableUser,
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...messages.map((message) => ({ role: message.role, content: message.content })),
+        ],
+      }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text().catch(() => "")
+      console.warn("[api/chat] OpenRouter request failed", response.status, errorText)
+      return null
+    }
+
+    const payload = await response.json()
+    return payload?.choices?.[0]?.message?.content?.trim() || null
+  } catch (error) {
+    console.warn("[api/chat] OpenRouter request error", error)
+    return null
+  }
 }
 
 function buildFallbackReply(scanContext: ScanContext | null) {
@@ -1038,6 +1095,78 @@ function buildFallbackReply(scanContext: ScanContext | null) {
     .join(" ")
 }
 
+function buildGeneralFallbackReply(input: string) {
+  const lower = input.toLowerCase()
+
+  if (/(mission)/i.test(lower) && /(vision)/i.test(lower)) {
+    return "According to the docs, TokenSight AI's mission is to democratize crypto token intelligence and make institutional-grade analysis accessible to every trader. Its vision is to become the go-to intelligence layer for the Solana ecosystem, expanding into scan contests, community-driven insights, advanced portfolio analytics, and a mobile experience."
+  }
+
+  if (/(mission)/i.test(lower)) {
+    return "According to the docs, TokenSight AI's mission is to democratize crypto token intelligence and make institutional-grade analysis accessible to every trader, regardless of experience or portfolio size."
+  }
+
+  if (/(vision)/i.test(lower)) {
+    return "According to the docs, TokenSight AI's vision is to become the go-to intelligence layer for the Solana ecosystem, with planned expansion into scan contests, community-driven insights, advanced portfolio analytics, and a mobile experience."
+  }
+
+  if (/(tech stack|data sources|powered by|what stack)/i.test(lower)) {
+    return "According to the docs, TokenSight AI uses Helius, Birdeye, DexScreener, Jupiter, and Bags for Solana data, and is built with Next.js 14, Supabase, and Tailwind CSS."
+  }
+
+  if (/(roadmap|what'?s next|coming soon)/i.test(lower)) {
+    return "According to the docs, the roadmap includes Solana Scan Contest, Advanced Portfolio Analytics, Telegram Bot V2, a Mobile App, and Community Insights. Telegram Bot V2 is listed as in progress."
+  }
+
+  if (/(leaderboard)/i.test(lower)) {
+    return "According to the docs, the leaderboard is driven by scan activity, XP, leagues, streaks, and public rankings so users can compare performance with the community."
+  }
+
+  if (/(telegram)/i.test(lower)) {
+    return "According to the docs, the Telegram bot currently supports alert notifications and scan summaries, and more features like inline scanning and portfolio summaries are planned."
+  }
+
+  if (/(scan history|history)/i.test(lower)) {
+    return "According to the docs, every scan is saved to personal history for logged-in users, including token name, score, risk level, and scan date, with paginated browsing."
+  }
+
+  if (/(profile)/i.test(lower)) {
+    return "According to the docs, the profile page includes avatar and display name, join date, global rank, skill class, streaks, league tier, and a stats dashboard."
+  }
+
+  if (/(scanner|intelligence score|quality|momentum|risk cap|confidence)/i.test(lower)) {
+    return "According to the docs, the Token Scanner evaluates four dimensions: Quality, Momentum, Confidence, and Risk Cap. It returns scan signals, security badges, market metrics, holder breakdown, identity data, links, an AI summary, a live chart, and quick actions."
+  }
+
+  if (isIdentityQuestion(input)) {
+    return "I am Sight AI, the TokenSight Copilot. I can answer product questions, explain token scans, summarize live token market data, and guide you through alerts, portfolio tracking, profile settings, and docs."
+  }
+
+  if (wantsProductHelp(input) || asksAboutDocs(input)) {
+    return [
+      "TokenSight AI helps with four main things:",
+      "1. Scan Solana tokens for score, risk, holder structure, liquidity, socials, and identity signals.",
+      "2. Review your saved portfolio and alert setup.",
+      "3. Explain platform features like scan history, leaderboard, Telegram alerts, and profile settings.",
+      "4. Surface live token market data such as price, liquidity, market cap, holders, exchange venues, and project links.",
+    ].join("\n")
+  }
+
+  if (mentionsPortfolio(input)) {
+    return "I can help review your portfolio and explain the data, but portfolio add, edit, and delete actions are disabled in chat right now. Use the Portfolio page for changes."
+  }
+
+  if (mentionsAlert(input)) {
+    return "I can help explain alert strategies and, if you ask directly, create or remove token alerts for your account."
+  }
+
+  if (mentionsProfile(input)) {
+    return "I can help with profile guidance and simple profile updates like display name or avatar when you ask clearly."
+  }
+
+  return "I can answer questions about TokenSight AI, your saved data, and Solana token analysis. Ask about features, alerts, profile settings, or paste a token address for live market and scan data."
+}
+
 export async function POST(request: Request) {
   const authUser = await getAuthUser(request)
 
@@ -1045,7 +1174,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const groqApiKey = process.env.GROQ_API_KEY
   const body = await request.json().catch(() => null)
   const messages = sanitizeMessages(body?.messages)
   const currentPath = typeof body?.currentPath === "string" ? body.currentPath : null
@@ -1069,7 +1197,6 @@ export async function POST(request: Request) {
     const activeTokenAddress = explicitAddress || searchResult?.tokenAddress || null
     const shouldDoFullScan = Boolean(activeTokenAddress) && wantsFullScan(latestUserMessage)
     const shouldDoTokenLookup = Boolean(activeTokenAddress) && !creatorQuestion && !shouldDoFullScan && (wantsSpecificTokenData(latestUserMessage) || wantsMarketLinks(latestUserMessage))
-
     const scanContext = shouldDoFullScan ? await getScanContext(request, activeTokenAddress) : null
     const tokenSnapshot = activeTokenAddress ? await fetchTokenSnapshot(activeTokenAddress, searchResult) : null
 
@@ -1098,28 +1225,33 @@ export async function POST(request: Request) {
       .filter((link, index, array) => array.findIndex((entry) => entry.href === link.href) === index)
       .slice(0, 6)
 
-    let reply = buildFallbackReply(scanContext)
     let cards: ChatCard[] = []
-
-    if (creatorQuestion) {
-      reply = BUILDER_REPLY
-    } else if (actionExecution.handled) {
-      reply = buildActionReply(actionExecution.results)
-      if (tokenSnapshot && wantsMarketLinks(latestUserMessage)) {
-        cards = buildSnapshotCards(tokenSnapshot, ["exchanges", "lp"], true)
-      }
+    if (actionExecution.handled && tokenSnapshot && wantsMarketLinks(latestUserMessage)) {
+      cards = buildSnapshotCards(tokenSnapshot, ["exchanges", "lp"], true)
     } else if (shouldDoFullScan && scanContext?.ok && scanContext.payload) {
-      reply = buildMarketReply({ scanContext, snapshot: tokenSnapshot, includeMarketLinks: externalLinks.length > 0 })
       cards = [
         ...buildScanCards(scanContext),
         ...(tokenSnapshot ? buildSnapshotCards(tokenSnapshot, ["exchanges", "lp"], true) : []),
       ]
     } else if (shouldDoTokenLookup && tokenSnapshot) {
-      reply = requestedMetrics.length > 0 ? buildMetricReply(tokenSnapshot, requestedMetrics) : buildTokenVenueReply(tokenSnapshot)
       cards = buildSnapshotCards(tokenSnapshot, requestedMetrics, wantsMarketLinks(latestUserMessage))
     }
 
-    if (!creatorQuestion && !actionExecution.handled && !shouldDoTokenLookup && groqApiKey && (!shouldDoFullScan || wantsProductHelp(latestUserMessage) || isLikelyQuestion(latestUserMessage))) {
+    const fallbackReply = creatorQuestion
+      ? BUILDER_REPLY
+      : actionExecution.handled
+        ? buildActionReply(actionExecution.results)
+        : shouldDoFullScan && scanContext?.ok && scanContext.payload
+          ? buildMarketReply({ scanContext, snapshot: tokenSnapshot, includeMarketLinks: externalLinks.length > 0 })
+          : shouldDoTokenLookup && tokenSnapshot
+            ? requestedMetrics.length > 0 ? buildMetricReply(tokenSnapshot, requestedMetrics) : buildTokenVenueReply(tokenSnapshot)
+            : !shouldDoFullScan && !shouldDoTokenLookup
+              ? buildGeneralFallbackReply(latestUserMessage)
+              : buildFallbackReply(scanContext)
+
+    let reply = fallbackReply
+
+    if (!creatorQuestion) {
       const systemPrompt = buildSystemPrompt({
         currentPath,
         userContext,
@@ -1128,26 +1260,15 @@ export async function POST(request: Request) {
         actionResults: actionExecution.results,
       })
 
-      const groqResponse = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${groqApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: DEFAULT_MODEL,
-          temperature: 0.35,
-          max_tokens: 900,
-          messages: [
-            { role: "system", content: systemPrompt },
-            ...messages.map((message) => ({ role: message.role, content: message.content })),
-          ],
-        }),
+      const openRouterReply = await requestOpenRouterReply({
+        request,
+        messages,
+        systemPrompt,
+        userContext,
       })
 
-      if (groqResponse.ok) {
-        const groqPayload = await groqResponse.json()
-        reply = groqPayload?.choices?.[0]?.message?.content?.trim() || reply
+      if (openRouterReply) {
+        reply = openRouterReply
       }
     }
 

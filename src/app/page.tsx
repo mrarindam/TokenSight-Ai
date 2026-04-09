@@ -139,7 +139,7 @@ export default function Home() {
       const [resBags, resTrending, resStats] = await Promise.all([
         fetch(withCacheBust("/api/tokens"), requestInit),
         fetch(withCacheBust("/api/trending"), requestInit),
-        fetch(withCacheBust("/api/stats"), requestInit)
+        fetch(withCacheBust("/api/stats"), { cache: "no-store" })
       ])
 
       const jsonBags: TokenApiResponse = await resBags.json()
@@ -613,7 +613,8 @@ function TechStack() {
     { name: "BIRDEYE", color: "text-amber-500" },
     { name: "JUPITER", color: "text-teal-400" },
     { name: "DEXSCREENER", color: "text-sky-400" },
-    { name: "GROQ", color: "text-orange-500" },
+    { name: "OPENROUTER", color: "text-orange-500" },
+    { name: "GECKOTERMINAL", color: "text-lime-400" },
     { name: "SUPABASE", color: "text-emerald-500" },
   ]
 

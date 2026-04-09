@@ -28,6 +28,16 @@ type DexPair = {
   }
 }
 
+type GeckoTerminalPoolSnapshot = {
+  dexes: string[]
+  pairAddress: string | null
+  poolCreatedAt: string | null
+  price: number | null
+  liquidity: number | null
+  volume24h: number | null
+  marketCap: number | null
+}
+
 type HolderSnapshot = {
   holdersCount: number | null
   topHolderPct: number | null
@@ -78,7 +88,7 @@ export async function POST(request: Request) {
       console.log(`[SCAN_ENGINE] Starting full audit for: ${address}`)
     }
 
-    const [birdeyePriceResult, birdeyeOverviewResult, bagsResult, dexResult, heliusAssetResult] = await Promise.allSettled([
+    const [birdeyePriceResult, birdeyeOverviewResult, bagsResult, dexResult, geckoResult, heliusAssetResult] = await Promise.allSettled([
       fetchBirdeyeData(
         "/defi/price",
         { address, include_liquidity: "true", ui_amount_mode: "scaled" },
@@ -153,8 +163,8 @@ export async function POST(request: Request) {
           console.warn("[SCAN_ENGINE] DexScreener API Error:", e)
         }
         return null
-      })()
-      ,
+      })(),
+      fetchGeckoTerminalPoolSnapshot(address),
       fetchHeliusAsset(address, HELIUS_API_KEY)
     ])
 
@@ -163,6 +173,7 @@ export async function POST(request: Request) {
     const rawBirdeyeOverview = birdeyeOverviewResult.status === "fulfilled" ? birdeyeOverviewResult.value : null
     const fallbackBagsToken = bagsResult.status === "fulfilled" ? bagsResult.value : null
     let rawDex = dexResult.status === "fulfilled" ? dexResult.value : null
+    const rawGeckoPool = geckoResult.status === "fulfilled" ? geckoResult.value : null
     const rawHeliusAsset = heliusAssetResult.status === "fulfilled" ? heliusAssetResult.value : null
 
     const birdeyeToken = normalizeBirdeyeToken(rawBirdeyeOverview, rawBirdeyePrice)
@@ -201,6 +212,9 @@ export async function POST(request: Request) {
     let dexTokenSymbol: string | null = null
     let dexPrice: number | null = null
     let highestPair: DexPair | null = null
+    let priceSource: "birdeye" | "dexscreener" | "geckoterminal" | "unknown" = "unknown"
+    let liquiditySource: "birdeye" | "dexscreener" | "geckoterminal" | "unknown" = "unknown"
+    let volumeSource: "birdeye" | "dexscreener" | "geckoterminal" | "unknown" = "unknown"
 
     if (rawDex?.pairs && Array.isArray(rawDex.pairs) && rawDex.pairs.length > 0) {
       // Prioritize Solana chain
@@ -222,17 +236,30 @@ export async function POST(request: Request) {
         dexPrice = highestPair.priceUsd ? parseFloat(highestPair.priceUsd) : null
       }
 
+      if (dexLiquidity !== null) liquiditySource = "dexscreener"
+      if (dexVolume !== null) volumeSource = "dexscreener"
+      if (dexPrice !== null) priceSource = "dexscreener"
+
       if (process.env.NODE_ENV === "development" && highestPair) {
         console.log(`[SCAN_ENGINE] Dex Best Pair: ${highestPair.pairAddress} | Chain: ${highestPair.chainId} | Liq: ${dexLiquidity} | Vol: ${dexVolume} | Price: ${dexPrice}`)
       }
     }
 
     if (birdeyeToken) {
-      dexLiquidity = birdeyeToken.liquidity ?? dexLiquidity
-      dexVolume = birdeyeToken.volume ?? dexVolume
+      if (birdeyeToken.liquidity !== null && birdeyeToken.liquidity !== undefined) {
+        dexLiquidity = birdeyeToken.liquidity
+        liquiditySource = "birdeye"
+      }
+      if (birdeyeToken.volume !== null && birdeyeToken.volume !== undefined) {
+        dexVolume = birdeyeToken.volume
+        volumeSource = "birdeye"
+      }
       dexTokenName = birdeyeToken.name || dexTokenName
       dexTokenSymbol = birdeyeToken.symbol || dexTokenSymbol
-      dexPrice = birdeyeToken.price ?? dexPrice
+      if (birdeyeToken.price !== null && birdeyeToken.price !== undefined) {
+        dexPrice = birdeyeToken.price
+        priceSource = "birdeye"
+      }
 
       if (!highestPair) {
         highestPair = {
@@ -252,6 +279,36 @@ export async function POST(request: Request) {
             socials: birdeyeToken.twitter ? [{ type: "twitter", url: birdeyeToken.twitter }] : [],
             websites: birdeyeToken.website ? [{ url: birdeyeToken.website }] : [],
           },
+        }
+      }
+    }
+
+    if (rawGeckoPool) {
+      if (dexLiquidity === null && rawGeckoPool.liquidity !== null) {
+        dexLiquidity = rawGeckoPool.liquidity
+        liquiditySource = "geckoterminal"
+      }
+      if (dexVolume === null && rawGeckoPool.volume24h !== null) {
+        dexVolume = rawGeckoPool.volume24h
+        volumeSource = "geckoterminal"
+      }
+      if (dexPrice === null && rawGeckoPool.price !== null) {
+        dexPrice = rawGeckoPool.price
+        priceSource = "geckoterminal"
+      }
+
+      if (!highestPair && rawGeckoPool.pairAddress) {
+        highestPair = {
+          pairAddress: rawGeckoPool.pairAddress,
+          chainId: "solana",
+          liquidity: { usd: rawGeckoPool.liquidity || undefined },
+          volume: { h24: rawGeckoPool.volume24h || undefined },
+          baseToken: {
+            address,
+          },
+          priceUsd: rawGeckoPool.price !== null ? String(rawGeckoPool.price) : undefined,
+          pairCreatedAt: parseTimestamp(rawGeckoPool.poolCreatedAt) || undefined,
+          marketCap: rawGeckoPool.marketCap || undefined,
         }
       }
     }
@@ -292,7 +349,7 @@ export async function POST(request: Request) {
     const twitterUrl = bagsToken?.twitter || highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "twitter")?.url || birdeyeToken?.twitter || null
     const telegramUrl = highestPair?.info?.socials?.find((s: { type: string; url: string }) => s.type === "telegram")?.url || null
     const quoteToken = highestPair?.baseToken?.address === address ? "Wrapped Sol (SOL)" : null
-    const marketCap = highestPair?.fdv ?? highestPair?.marketCap ?? null
+    const marketCap = highestPair?.fdv ?? highestPair?.marketCap ?? rawGeckoPool?.marketCap ?? null
     const tokenImage = bagsToken?.image || highestPair?.info?.imageUrl || birdeyeToken?.image || null
 
     if (process.env.NODE_ENV === "development") {
@@ -538,7 +595,11 @@ export async function POST(request: Request) {
 
     if (scanPersistError) {
       console.error("[api/scan] Failed to persist scan:", scanPersistError)
-    } else if (authUser?.id) {
+    } else {
+      revalidatePath("/")
+    }
+
+    if (!scanPersistError && authUser?.id) {
       await updateStreak(authUser.id, score, tokenName)
       revalidatePath("/profile")
     }
@@ -595,9 +656,9 @@ export async function POST(request: Request) {
           metadataTrust: metadataTrustScore,
         },
         sources: {
-          price: birdeyeToken?.price !== null && birdeyeToken?.price !== undefined ? "birdeye" : dexPrice !== null ? "dexscreener" : "unknown",
-          liquidity: birdeyeToken?.liquidity !== null && birdeyeToken?.liquidity !== undefined ? "birdeye" : dexLiquidity !== null ? "dexscreener" : bagsToken?.liquidity ? "bags" : "unknown",
-          volume: birdeyeToken?.volume !== null && birdeyeToken?.volume !== undefined ? "birdeye" : dexVolume !== null ? "dexscreener" : bagsToken?.volume || bagsToken?.volume24h ? "bags" : "unknown",
+          price: priceSource,
+          liquidity: liquiditySource !== "unknown" ? liquiditySource : bagsToken?.liquidity ? "bags" : "unknown",
+          volume: volumeSource !== "unknown" ? volumeSource : bagsToken?.volume || bagsToken?.volume24h ? "bags" : "unknown",
           holders: holderSnapshot.holdersCount !== null ? "helius" : birdeyeToken?.holders !== null && birdeyeToken?.holders !== undefined ? "birdeye" : "unknown",
           whale: holderSnapshot.topHolderPct !== null ? "helius" : "unknown",
           creator: creatorBehavior.createdTokens !== null ? "helius" : creatorTokenBase !== null ? "bags" : "unknown",
@@ -1236,6 +1297,63 @@ async function fetchBirdeyeData(
     return data?.data || null
   } catch (error) {
     console.warn(`[SCAN_ENGINE] Birdeye ${label} error:`, error)
+    return null
+  }
+}
+
+async function fetchGeckoTerminalPoolSnapshot(address: string): Promise<GeckoTerminalPoolSnapshot | null> {
+  try {
+    const res = await fetch(`https://api.geckoterminal.com/api/v2/networks/solana/tokens/${address}/pools?page=1`, {
+      method: "GET",
+      cache: "no-store",
+      headers: {
+        accept: "application/json",
+      },
+    })
+
+    if (!res.ok) {
+      if (res.status !== 404) {
+        console.warn(`[SCAN_ENGINE] GeckoTerminal pool fetch failed with status ${res.status}`)
+      }
+      return null
+    }
+
+    const payload = (await res.json().catch(() => null)) as Record<string, unknown> | null
+    const poolRows = Array.isArray(payload?.data) ? payload.data : []
+    const pools = poolRows
+      .map((pool) => {
+        const record = asRecord(pool)
+        const attributes = asRecord(record?.attributes)
+        const relationships = asRecord(record?.relationships)
+        const dex = asRecord(asRecord(relationships?.dex)?.data)
+
+        return {
+          dexId: pickString(dex, ["id"]),
+          pairAddress: pickString(attributes, ["address"]),
+          poolCreatedAt: pickString(attributes, ["pool_created_at"]),
+          price: pickNumber(attributes, ["token_price_usd", "base_token_price_usd"]),
+          liquidity: pickNumber(attributes, ["reserve_in_usd"]),
+          volume24h: pickNumber(asRecord(attributes?.volume_usd), ["h24"]),
+          marketCap: pickNumber(attributes, ["market_cap_usd", "fdv_usd"]),
+        }
+      })
+      .filter((pool) => pool.price !== null || pool.liquidity !== null || pool.volume24h !== null)
+
+    if (pools.length === 0) return null
+
+    const bestPool = [...pools].sort((left, right) => (right.liquidity || 0) - (left.liquidity || 0))[0]
+
+    return {
+      dexes: Array.from(new Set(pools.map((pool) => pool.dexId).filter((value): value is string => Boolean(value)))),
+      pairAddress: bestPool.pairAddress || null,
+      poolCreatedAt: bestPool.poolCreatedAt || null,
+      price: bestPool.price,
+      liquidity: bestPool.liquidity,
+      volume24h: bestPool.volume24h,
+      marketCap: bestPool.marketCap,
+    }
+  } catch (error) {
+    console.warn("[SCAN_ENGINE] GeckoTerminal pool fetch error:", error)
     return null
   }
 }
