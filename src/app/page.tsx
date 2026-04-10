@@ -656,7 +656,7 @@ export default function Home() {
 
             <div className="space-y-4">
               <h3 className="max-w-2xl text-3xl font-black tracking-tight text-foreground md:text-5xl md:leading-tight text-3d">
-                WE KNOW WHO YOUR ARE VIA <span className="bg-gradient-to-r from-rose-400 to-pink-400 bg-clip-text text-transparent">PROFILE</span>
+                WE KNOW WHO YOU ARE VIA <span className="bg-gradient-to-r from-rose-400 to-pink-400 bg-clip-text text-transparent">PROFILE</span>
               </h3>
               <p className="max-w-xl text-base leading-relaxed text-muted-foreground/70 md:text-lg">
                 Your profile keeps identity, personalization, and account-level context connected so TokenSight can shape a more direct and usable trading experience.
