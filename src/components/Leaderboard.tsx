@@ -47,7 +47,7 @@ const formatAccuracy = (rate: number) => {
 }
 
 export default function Leaderboard() {
-  const { authenticated } = usePrivy()
+  const { authenticated, ready } = usePrivy()
   const authFetch = useAuthFetch()
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,8 +72,14 @@ export default function Leaderboard() {
   }, [authFetch, authenticated])
 
   const fetchLeaderboard = useCallback(async () => {
+    if (!authenticated) {
+      setLeaderboard([])
+      setLoading(false)
+      return
+    }
+
     try {
-      const response = await fetch('/api/leaderboard', { cache: 'no-store' })
+      const response = await authFetch('/api/leaderboard', { cache: 'no-store' })
       const data = await response.json()
 
       if (!response.ok) {
@@ -86,18 +92,35 @@ export default function Leaderboard() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [authFetch, authenticated])
 
   useEffect(() => {
+    if (!ready) return
+
     fetchLeaderboard()
-    
+    if (!authenticated) return
+
     const interval = setInterval(fetchLeaderboard, 15000)
     return () => clearInterval(interval)
-  }, [fetchLeaderboard])
+  }, [authenticated, fetchLeaderboard, ready])
 
   useEffect(() => {
+    if (!ready) return
     void fetchCurrentUser()
-  }, [fetchCurrentUser])
+  }, [fetchCurrentUser, ready])
+
+  if (!ready) {
+    return (
+      <div className="flex flex-col gap-8 animate-pulse">
+        <div className="flex justify-center gap-6 pt-12">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="w-32 h-48 glass rounded-3xl bg-muted/10 border border-border/20" />
+          ))}
+        </div>
+        <div className="glass rounded-3xl h-96 bg-muted/10 border border-border/20" />
+      </div>
+    )
+  }
 
   if (loading && leaderboard.length === 0) {
     return (

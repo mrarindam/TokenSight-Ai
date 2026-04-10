@@ -1,12 +1,20 @@
 import { Trophy, TrendingUp } from "lucide-react"
+import { redirect } from "next/navigation"
 import Leaderboard from "@/components/Leaderboard"
+import { getAuthUserFromCookies } from "@/lib/auth"
 
 /**
  * MISSION: Global Leaderboard
  * Purpose: Display top performing analysts based on scans, accuracy, and streaks.
  * Theme: Cyberpunk Intelligence / Dark Glassmorphism
  */
-export default function LeaderboardPage() {
+export default async function LeaderboardPage() {
+  const authUser = await getAuthUserFromCookies()
+
+  if (!authUser) {
+    redirect("/login")
+  }
+
   return (
     <div className="flex flex-col min-h-screen relative overflow-hidden bg-background">
       {/* BACKGROUND ACCENTS */}

@@ -224,11 +224,11 @@ export default function Home() {
         <div className="absolute top-[30%] right-[20%] w-[300px] h-[300px] bg-gradient-to-br from-fuchsia-500/10 to-transparent rounded-full blur-[100px] animate-pulse-glow" style={{ animationDelay: "2s" }} />
 
         {/* Floating particles */}
-        <div className="absolute top-[15%] left-[8%] w-2 h-2 rounded-full bg-primary/40" style={{ animation: "particle-float 6s ease-in-out infinite" }} />
-        <div className="absolute top-[45%] right-[12%] w-1.5 h-1.5 rounded-full bg-cyan-400/50" style={{ animation: "particle-float 8s ease-in-out infinite 1s" }} />
-        <div className="absolute bottom-[25%] left-[25%] w-1 h-1 rounded-full bg-purple-400/60" style={{ animation: "particle-float 7s ease-in-out infinite 2s" }} />
-        <div className="absolute top-[60%] right-[30%] w-2.5 h-2.5 rounded-full bg-emerald-400/30" style={{ animation: "particle-float 9s ease-in-out infinite 0.5s" }} />
-        <div className="absolute top-[20%] right-[40%] w-1 h-1 rounded-full bg-amber-400/40" style={{ animation: "particle-float 5s ease-in-out infinite 3s" }} />
+        <div className="hidden md:block absolute top-[15%] left-[8%] w-2 h-2 rounded-full bg-primary/40" style={{ animation: "particle-float 6s ease-in-out infinite" }} />
+        <div className="hidden md:block absolute top-[45%] right-[12%] w-1.5 h-1.5 rounded-full bg-cyan-400/50" style={{ animation: "particle-float 8s ease-in-out infinite 1s" }} />
+        <div className="hidden md:block absolute bottom-[25%] left-[25%] w-1 h-1 rounded-full bg-purple-400/60" style={{ animation: "particle-float 7s ease-in-out infinite 2s" }} />
+        <div className="hidden md:block absolute top-[60%] right-[30%] w-2.5 h-2.5 rounded-full bg-emerald-400/30" style={{ animation: "particle-float 9s ease-in-out infinite 0.5s" }} />
+        <div className="hidden md:block absolute top-[20%] right-[40%] w-1 h-1 rounded-full bg-amber-400/40" style={{ animation: "particle-float 5s ease-in-out infinite 3s" }} />
 
         <div className="dashboard-shell relative py-16 md:py-20 lg:py-24 xl:py-28">
           <div className="dashboard-grid items-center">
@@ -982,12 +982,14 @@ function TrendingTokenRow({ token }: { token: TrendingToken }) {
 function TechStack() {
   const logos = [
     { name: "SOLANA", color: "text-primary" },
+    { name: "BAGS", color: "text-rose-400" },
     { name: "HELIUS", color: "text-purple-500" },
     { name: "BIRDEYE", color: "text-amber-500" },
     { name: "JUPITER", color: "text-teal-400" },
     { name: "DEXSCREENER", color: "text-sky-400" },
     { name: "OPENROUTER", color: "text-orange-500" },
     { name: "GECKOTERMINAL", color: "text-lime-400" },
+    { name: "PRIVY", color: "text-orange-400" },
     { name: "SUPABASE", color: "text-emerald-500" },
   ]
 
