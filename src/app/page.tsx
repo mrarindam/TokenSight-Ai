@@ -371,7 +371,7 @@ export default function Home() {
               <div className="overflow-hidden rounded-[1.2rem] border border-primary/15 bg-black/50">
                 <video
                   className="aspect-[16/10] w-full object-cover"
-                  src="/api/media/scan-demo"
+                  src="/media/scan-demo.mp4"
                   autoPlay
                   muted
                   loop
