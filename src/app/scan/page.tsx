@@ -507,20 +507,21 @@ function ScanPageContent() {
   return (
     <div className="flex flex-col min-h-screen relative overflow-x-hidden w-full outline outline-0 outline-red-500/0">
       {/* BACKGROUND ACCENT WRAPPER TO PREVENT OVERFLOW */}
-      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-[600px] h-[400px] pointer-events-none overflow-hidden">
-        <div className="absolute inset-0 bg-primary/5 rounded-full blur-[150px] opacity-50" />
+      <div className="absolute inset-x-0 top-0 h-[420px] pointer-events-none overflow-hidden">
+        <div className="absolute left-[6%] top-[-8%] h-[24rem] w-[24rem] rounded-full bg-primary/10 blur-[150px] opacity-55" />
+        <div className="absolute right-[8%] top-[6%] h-[20rem] w-[20rem] rounded-full bg-cyan-500/10 blur-[140px] opacity-45" />
       </div>
 
-      <div className="container w-full max-w-7xl py-10 md:py-16 px-4 md:px-8 space-y-10 relative z-10">
+      <div className="relative z-10 w-full px-4 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-10 md:py-16 space-y-10">
         <div className="space-y-3 text-center animate-fade-up">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-medium">
             <Sparkles className="h-3 w-3" />
             AI Tokens Scan
           </div>
-          <h1 className="text-4xl md:text-5xl font-black tracking-tight bg-gradient-to-b from-foreground via-foreground to-foreground/40 bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-foreground via-cyan-300 to-primary bg-clip-text text-transparent">
             Opportunity Intelligence
           </h1>
-          <p className="text-muted-foreground text-base max-w-lg mx-auto leading-relaxed font-medium">
+          <p className="text-muted-foreground text-base leading-relaxed font-medium xl:text-lg">
             Paste any Solana token contract address to get instant AI-powered entry signals and market confidence distribution.
             {!isAuthenticated && (
               <span className={cn(
@@ -542,7 +543,7 @@ function ScanPageContent() {
         </div>
 
         <div className="animate-fade-up" style={{ animationDelay: "0.1s" }}>
-          <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto w-full">
+          <div className="flex flex-col sm:flex-row gap-3 w-full">
             <div className="relative flex-1 w-full min-w-0 group">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground group-focus-within:text-primary transition-colors" />
               <Input
@@ -555,7 +556,7 @@ function ScanPageContent() {
             </div>
             <Button
               size="lg"
-              className="h-12 md:h-13 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 rounded-xl font-semibold w-full sm:w-36 flex-shrink-0"
+              className="h-12 md:h-13 px-8 bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg shadow-primary/25 hover:shadow-primary/40 transition-all duration-300 rounded-xl font-semibold w-full sm:w-40 flex-shrink-0"
               onClick={() => handleScan(address)}
               disabled={!address || isScanning}
             >
@@ -585,7 +586,7 @@ function ScanPageContent() {
                   <Lock className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-black tracking-tight text-foreground uppercase">Identity Required</h3>
-                <p className="text-sm text-muted-foreground max-w-sm mx-auto font-medium">
+                <p className="text-sm text-muted-foreground font-medium">
                   Log in now to unlock unlimited scanning, leaderboard access, and surveillance stats.
                 </p>
                 <Button
@@ -714,7 +715,7 @@ function ScanPageContent() {
 
             {/* ===== SECURITY BADGES ===== */}
             {result.meta?.security && (
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="grid w-full grid-cols-12 gap-3">
                 {[
                   {
                     label: result.meta.security.mintAuthorityDisabled ? "Mint authority is disabled." : "Mint authority is enabled.",
@@ -732,7 +733,7 @@ function ScanPageContent() {
                   <div
                     key={badge.label}
                     className={cn(
-                      "group/badge flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-300 hover:scale-[1.02]",
+                      "col-span-12 md:col-span-4 group/badge flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-300 hover:scale-[1.02]",
                       badge.ok
                         ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-400 hover:border-emerald-500/40 hover:shadow-lg hover:shadow-emerald-500/5"
                         : "border-rose-500/20 bg-rose-500/5 text-rose-400 hover:border-rose-500/40 hover:shadow-lg hover:shadow-rose-500/5"
@@ -746,8 +747,8 @@ function ScanPageContent() {
             )}
 
             {/* ===== ENRICHED PROTOCOL PANELS ===== */}
-            <div className={cn("grid grid-cols-1 gap-5", isBagsToken ? "xl:grid-cols-3" : "xl:grid-cols-2")}>
-              <div className="relative rounded-2xl border border-amber-500/20 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-amber-500/10 hover:shadow-amber-500/20 transition-shadow duration-500">
+            <div className="grid w-full grid-cols-12 gap-6">
+              <div className={`col-span-12 relative rounded-2xl border border-amber-500/20 bg-card/60 p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-amber-500/10 transition-shadow duration-500 hover:shadow-amber-500/20 backdrop-blur-xl ${isBagsToken ? "xl:col-span-4" : "xl:col-span-6"}`}>
                 <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent opacity-50" />
                 <div className="flex items-center justify-between gap-3 mb-4">
                   <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground">
@@ -853,7 +854,7 @@ function ScanPageContent() {
               </div>
 
               {isBagsToken && (
-              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-shadow duration-500">
+              <div className="col-span-12 xl:col-span-4 relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-shadow duration-500">
                 <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent opacity-50" />
                 <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
                   <Activity className="h-3.5 w-3.5 text-cyan-400" />
@@ -886,7 +887,7 @@ function ScanPageContent() {
               </div>
               )}
 
-              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-violet-500/10 hover:shadow-violet-500/20 transition-shadow duration-500">
+              <div className={`col-span-12 relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-violet-500/10 hover:shadow-violet-500/20 transition-shadow duration-500 ${isBagsToken ? "xl:col-span-4" : "xl:col-span-6"}`}>
                 <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-violet-500/40 to-transparent opacity-50" />
                 <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
                   <Fingerprint className="h-3.5 w-3.5 text-violet-400" />
@@ -951,7 +952,7 @@ function ScanPageContent() {
             </div>
 
             {/* ===== TRADING FLOW ===== */}
-            <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
+            <div className="relative w-full rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
               <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-50" />
               <div className="flex items-center justify-between gap-3 mb-4">
                 <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground">
@@ -1003,10 +1004,10 @@ function ScanPageContent() {
             />
 
             {/* ===== ROW 1: Signals (left) | Chart (right) ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="grid w-full grid-cols-12 gap-6">
 
               {/* Intelligence Signals */}
-              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/signals shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
+              <div className="col-span-12 xl:col-span-4 relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/signals shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
                 <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-40 group-hover/signals:opacity-100 transition-opacity" />
                   <h3 className="font-black uppercase tracking-widest text-[10px] flex items-center gap-2 text-muted-foreground mb-4">
                     Intelligence Signals
@@ -1063,16 +1064,16 @@ function ScanPageContent() {
                 </div>
 
               {/* Chart (right side of row 1) */}
-              <div className="min-w-0">
+              <div className="col-span-12 xl:col-span-8 min-w-0">
                 <TokenChart address={address || urlAddress || ""} tokenName={result.contractName} />
               </div>
             </div>
 
             {/* ===== ROW 2: Metrics (left) | Holder Breakdown (middle) | Identity (right) ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="grid w-full grid-cols-12 gap-6">
 
               {/* Market Metrics */}
-              <div className="space-y-3">
+              <div className="col-span-12 xl:col-span-4 space-y-3">
                 {/* Market Metrics */}
                 {result.meta && (
                   <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3">
@@ -1139,7 +1140,7 @@ function ScanPageContent() {
               </div>
 
               {/* Holder Breakdown (middle col of row 2) */}
-              <div className="min-w-0">
+              <div className="col-span-12 xl:col-span-4 min-w-0">
                 {!!result.meta?.holderBreakdown?.length && (
                   <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 space-y-3 overflow-hidden group/holder h-full shadow-[0_0_15px_-3px] shadow-rose-500/10 hover:shadow-rose-500/20 transition-shadow duration-500">
                     <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-rose-500/40 to-transparent opacity-40 group-hover/holder:opacity-100 transition-opacity" />
@@ -1211,7 +1212,7 @@ function ScanPageContent() {
               </div>
 
               {/* Identity & Ownership (right col of row 2) */}
-              <div className="min-w-0">
+              <div className="col-span-12 xl:col-span-4 min-w-0">
                 {result.meta?.identity && (
                   <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/id h-full shadow-[0_0_15px_-3px] shadow-cyan-500/10 hover:shadow-cyan-500/20 transition-shadow duration-500">
                     <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent opacity-40 group-hover/id:opacity-100 transition-opacity" />
@@ -1308,10 +1309,10 @@ function ScanPageContent() {
             )}
 
             {/* ===== ROW 3: Summary (left) | Swap (middle) | Links & Social (right) ===== */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <div className="grid w-full grid-cols-12 gap-6">
 
               {/* Intelligence Summary */}
-              <div className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl overflow-hidden group/summary shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
+              <div className="col-span-12 xl:col-span-4 relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl overflow-hidden group/summary shadow-[0_0_15px_-3px] shadow-primary/10 hover:shadow-primary/20 transition-shadow duration-500">
                 <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/40 to-transparent opacity-40 group-hover/summary:opacity-100 transition-opacity" />
                 <div className="border-b border-border/20 bg-muted/5 px-5 py-3 flex items-center justify-between">
                   <div className="flex items-center gap-2 text-[10px] uppercase font-black tracking-widest text-muted-foreground">
@@ -1330,12 +1331,12 @@ function ScanPageContent() {
               </div>
 
               {/* Swap */}
-              <div className="min-w-0">
+              <div className="col-span-12 xl:col-span-4 min-w-0">
                 <SwapWidget tokenAddress={address || urlAddress || ""} tokenSymbol={result.contractName} />
               </div>
 
               {/* Links & Social (desktop only) */}
-              <div className="min-w-0 hidden lg:block">
+              <div className="col-span-12 xl:col-span-4 min-w-0 hidden lg:block">
                 {result.meta?.social && (
                   <div className="relative rounded-2xl border border-purple-500/20 bg-card/60 backdrop-blur-xl p-5 overflow-hidden group/social shadow-[0_0_15px_-3px] shadow-purple-500/10 hover:shadow-purple-500/25 transition-shadow duration-500 h-full">
                     <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500/50 to-transparent opacity-60 group-hover/social:opacity-100 transition-opacity" />
@@ -1395,7 +1396,7 @@ function ScanPageContent() {
         )}
 
         {!result && !isScanning && !errorMsg && (
-          <div className="text-center py-20">
+          <div className="rounded-3xl border border-border/20 bg-card/40 py-20 text-center backdrop-blur-xl">
             <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-muted/50 mb-4 shadow-inner">
               <Search className="h-7 w-7 text-muted-foreground/50" />
             </div>

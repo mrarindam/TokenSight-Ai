@@ -24,37 +24,44 @@ export default function LeaderboardPage() {
         </svg>
       </div>
 
-      <div className="container max-w-6xl py-8 md:py-16 space-y-12 relative z-10">
+      <div className="terminal-page-shell py-8 md:py-16 space-y-12 relative z-10">
         {/* HEADER SECTION */}
-        <div className="space-y-4 text-center animate-in fade-in slide-in-from-top duration-700">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-primary/20 bg-primary/5 backdrop-blur-md shadow-lg shadow-primary/5">
-             <div className="relative">
-               <Trophy className="h-4 w-4 text-primary animate-pulse" />
-               <div className="absolute inset-0 bg-primary/20 blur-sm animate-ping rounded-full" />
-             </div>
-             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Live Intelligence Ranking</span>
-          </div>
-          
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight bg-gradient-to-b from-foreground via-foreground/90 to-foreground/40 bg-clip-text text-transparent">
-            GLOBAL LEADERBOARD
-          </h1>
-          
-          <p className="text-foreground/90 text-sm md:text-base max-w-xl mx-auto font-black leading-relaxed">
-            Top analysts are ranked purely by total scan activity across the network.
-          </p>
-          <div className="text-[10px] text-muted-foreground/40 font-black uppercase tracking-[0.2em] animate-pulse">
-            More scans = Higher rank. Accuracy and streak reflect skill, not rank.
-          </div>
-
-          {/* REAL-TIME INDICATOR */}
-          <div className="flex items-center justify-center gap-8 pt-4">
-            <div className="flex items-center gap-2 group cursor-default">
-              <div className="w-2 h-2 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--primary),0.6)]" />
-              <span className="text-[10px] font-bold text-muted-foreground group-hover:text-primary transition-colors">ESTABLISHED ANALYSTS</span>
+        <div className="terminal-page-grid items-start animate-in fade-in slide-in-from-top duration-700">
+          <div className="col-span-12 xl:col-span-8 space-y-4 text-center xl:text-left">
+            <div className="terminal-page-kicker">
+              <Trophy className="h-3.5 w-3.5" />
+              Live Intelligence Ranking
             </div>
-            <div className="flex items-center gap-2 group cursor-default">
-              <TrendingUp className="h-4 w-4 text-safe group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] font-bold text-muted-foreground group-hover:text-safe transition-colors uppercase tracking-widest">Live updating</span>
+            <h1 className="text-4xl md:text-6xl xl:text-7xl font-black tracking-tight text-3d text-3d-hero">
+              <span className="bg-gradient-to-r from-yellow-300 via-foreground to-primary bg-clip-text text-transparent animate-aurora">GLOBAL LEADERBOARD</span>
+            </h1>
+            <p className="max-w-3xl text-foreground/90 text-sm md:text-base font-black leading-relaxed">
+              Top analysts are ranked purely by total scan activity across the network.
+            </p>
+            <div className="text-[10px] text-muted-foreground/40 font-black uppercase tracking-[0.2em] animate-pulse">
+              More scans = Higher rank. Accuracy and streak reflect skill, not rank.
+            </div>
+          </div>
+          <div className="col-span-12 xl:col-span-4">
+            <div className="terminal-page-frame p-5">
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Board</div>
+                  <div className="mt-2 text-2xl font-black text-foreground">Top 50</div>
+                </div>
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Refresh</div>
+                  <div className="mt-2 text-2xl font-black text-safe">Live</div>
+                </div>
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Signal</div>
+                  <div className="mt-2 text-sm font-black uppercase tracking-[0.16em] text-primary">Volume</div>
+                </div>
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Mode</div>
+                  <div className="mt-2 flex items-center gap-2 text-sm font-black uppercase tracking-[0.16em] text-safe"><TrendingUp className="h-4 w-4" /> Live</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

@@ -161,33 +161,90 @@ export default function PortfolioPage() {
   }
 
   if (!ready) {
-    return <div className="container py-16">Loading portfolio...</div>
+    return <div className="terminal-page-shell py-16">Loading portfolio...</div>
   }
 
   if (!authenticated) {
     return (
-      <div className="container max-w-lg py-24 text-center space-y-6">
-        <div className="mx-auto w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-          <Wallet className="h-8 w-8 text-emerald-400" />
+      <div className="relative min-h-screen w-full overflow-x-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[30rem] overflow-hidden">
+          <div className="absolute left-[8%] top-[-12%] h-72 w-72 rounded-full bg-emerald-500/10 blur-[150px]" />
+          <div className="absolute right-[10%] top-[8%] h-72 w-72 rounded-full bg-cyan-500/10 blur-[140px]" />
         </div>
-        <h1 className="text-3xl font-black tracking-tight">Portfolio</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">Log in to track holdings, entry price, and ROI for scanned tokens.</p>
-        <Link
-          href="/login"
-          className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-        >
-          <LogIn className="h-4 w-4" />
-          Sign in to continue
-        </Link>
-        <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
+        <div className="terminal-page-shell relative z-10 py-24">
+          <div className="terminal-page-grid">
+            <div className="col-span-12 xl:col-span-6 xl:col-start-4 text-center space-y-6 terminal-page-frame p-8 md:p-10">
+              <div className="terminal-icon-tile mx-auto text-emerald-400 border-emerald-500/20 bg-emerald-500/10 shadow-[0_0_30px_rgba(52,211,153,0.16)]">
+                <Wallet className="h-8 w-8" />
+              </div>
+              <div className="space-y-3">
+                <div className="terminal-page-kicker">
+                  <Wallet className="h-3.5 w-3.5" />
+                  Portfolio Terminal
+                </div>
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-emerald-300 via-foreground to-cyan-300 bg-clip-text text-transparent">Portfolio</h1>
+                <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to track holdings, entry price, and ROI for scanned tokens.</p>
+              </div>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in to continue
+              </Link>
+              <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container max-w-7xl px-4 py-8 md:px-6 md:py-12 space-y-8 md:space-y-10">
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] overflow-hidden">
+        <div className="absolute left-[4%] top-[-12%] h-80 w-80 rounded-full bg-emerald-500/10 blur-[160px] opacity-80" />
+        <div className="absolute right-[7%] top-[6%] h-72 w-72 rounded-full bg-cyan-500/10 blur-[150px] opacity-75" />
+      </div>
+      <div className="absolute inset-0 terminal-grid-bg opacity-[0.16] pointer-events-none" />
+      <div className="terminal-page-shell relative z-10 py-8 md:py-12 space-y-8 md:space-y-10">
+      <section className="terminal-page-grid items-start">
+        <div className="col-span-12 xl:col-span-8 space-y-4 animate-fade-up">
+          <div className="terminal-page-kicker">
+            <Wallet className="h-3.5 w-3.5" />
+            Holdings Command Deck
+          </div>
+          <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
+            <span className="bg-gradient-to-r from-emerald-300 via-foreground to-cyan-300 bg-clip-text text-transparent animate-aurora">Portfolio Terminal</span>
+          </h1>
+          <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Track positions, compare live market value versus entry, and manage your conviction levels through a wider multi-panel trading layout.</p>
+        </div>
+        <div className="col-span-12 xl:col-span-4 animate-fade-up [animation-delay:120ms]">
+          <div className="terminal-page-frame p-5">
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Winners</div>
+                <div className="mt-2 text-2xl font-black text-emerald-300">{summary.winners}</div>
+              </div>
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Losers</div>
+                <div className="mt-2 text-2xl font-black text-rose-300">{summary.losers}</div>
+              </div>
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Live ROI</div>
+                <div className={cn("mt-2 text-sm font-black", totalRoi >= 0 ? "text-emerald-300" : "text-rose-300")}>{totalRoi >= 0 ? "+" : ""}{totalRoi.toFixed(2)}%</div>
+              </div>
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">State</div>
+                <div className="mt-2 text-sm font-black uppercase tracking-[0.16em] text-primary">{loading ? "Syncing" : "Ready"}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ===== Summary Cards ===== */}
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="terminal-page-grid">
         {[
           { label: "Holdings", value: String(summary.totalHoldings), icon: Wallet, sub: "Tracked positions in your portfolio.", color: "from-primary/20 to-blue-500/20", iconColor: "text-primary" },
           { label: "Total Invested", value: `$${summary.totalInvested.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, icon: DollarSign, sub: "Based on your saved entry prices.", color: "from-purple-500/20 to-pink-500/20", iconColor: "text-purple-400" },
@@ -196,7 +253,7 @@ export default function PortfolioPage() {
         ].map((card) => {
           const Icon = card.icon
           return (
-            <div key={card.label} className="group relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 overflow-hidden transition-all duration-500 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 hover:scale-[1.02]">
+            <div key={card.label} className="col-span-12 sm:col-span-6 xl:col-span-3 group relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 overflow-hidden transition-all duration-500 hover:border-primary/20 hover:shadow-xl hover:shadow-primary/5 hover:scale-[1.02] hover-lift-premium">
               <div className={cn("absolute inset-0 bg-gradient-to-br opacity-0 group-hover:opacity-100 transition-opacity duration-500", card.color)} />
               <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
               <div className="relative z-10">
@@ -212,9 +269,9 @@ export default function PortfolioPage() {
         })}
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(360px,420px)_minmax(0,1fr)] xl:items-start">
+      <div className="terminal-page-grid xl:items-start">
         {/* ===== Portfolio Form ===== */}
-        <section className="relative group rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 xl:sticky xl:top-28 overflow-hidden transition-all duration-500 hover:border-primary/20">
+        <section className="col-span-12 xl:col-span-4 relative group rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 xl:sticky xl:top-28 overflow-hidden transition-all duration-500 hover:border-primary/20 hover-lift-premium">
           <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
           <div className="absolute -top-16 -right-16 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/20 transition-colors" />
 
@@ -339,7 +396,7 @@ export default function PortfolioPage() {
         </section>
 
         {/* ===== Holdings Section ===== */}
-        <section className="relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 min-w-0 overflow-hidden">
+        <section className="col-span-12 xl:col-span-8 relative rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 min-w-0 overflow-hidden hover-lift-premium">
           <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent opacity-40" />
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -501,6 +558,7 @@ export default function PortfolioPage() {
             </table>
           </div>
         </section>
+      </div>
       </div>
     </div>
   )

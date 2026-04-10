@@ -116,12 +116,12 @@ export default function Leaderboard() {
   const remaining = leaderboard.slice(3)
 
   return (
-    <div className="space-y-12 pb-20">
+    <div className="w-full space-y-12 pb-20">
       {/* ===== PODIUM SECTION (TOP 3) ===== */}
       <div className="flex items-end justify-center gap-2 md:gap-8 pt-10 px-2 md:px-4">
         {/* 2nd Place */}
         {topThree[1] && (
-          <div className="flex flex-col items-center gap-2 md:gap-4 group">
+          <div className="flex flex-col items-center gap-2 md:gap-4 group hover-lift-premium">
             <div className="relative">
               <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl glass border border-slate-400/30 flex items-center justify-center ring-4 ring-slate-400/10 group-hover:scale-105 transition-transform duration-500 overflow-hidden shadow-lg shadow-slate-400/5">
                 {topThree[1].users.avatar_url ? (
@@ -153,7 +153,7 @@ export default function Leaderboard() {
 
         {/* 1st Place */}
         {topThree[0] && (
-          <div className="flex flex-col items-center gap-2 md:gap-4 group scale-100 md:scale-110 lg:scale-125 z-20">
+          <div className="flex flex-col items-center gap-2 md:gap-4 group scale-100 md:scale-110 lg:scale-125 z-20 hover-lift-premium">
             <div className="relative">
               <Crown className="absolute -top-6 md:-top-8 left-1/2 -translate-x-1/2 h-6 w-6 md:h-8 md:w-8 text-yellow-500 drop-shadow-[0_0_12px_rgba(234,179,8,0.5)] animate-bounce" />
               <div className="w-20 h-20 md:w-24 md:h-24 rounded-2xl glass border border-yellow-500/40 flex items-center justify-center ring-4 ring-yellow-500/20 group-hover:scale-105 transition-transform duration-500 overflow-hidden shadow-xl shadow-yellow-500/10">
@@ -188,7 +188,7 @@ export default function Leaderboard() {
 
         {/* 3rd Place */}
         {topThree[2] && (
-          <div className="flex flex-col items-center gap-2 md:gap-4 group">
+          <div className="flex flex-col items-center gap-2 md:gap-4 group hover-lift-premium">
             <div className="relative">
               <div className="w-16 h-16 md:w-20 md:h-20 rounded-2xl glass border border-amber-700/30 flex items-center justify-center ring-4 ring-amber-700/10 group-hover:scale-105 transition-transform duration-500 overflow-hidden shadow-lg shadow-amber-700/5">
                 {topThree[2].users.avatar_url ? (
@@ -220,7 +220,7 @@ export default function Leaderboard() {
       </div>
 
       {/* ===== REMAINING BOARD TABLE ===== */}
-      <Card className="glass border-border/40 overflow-hidden shadow-2xl relative">
+      <Card className="terminal-page-frame border-border/40 overflow-hidden shadow-2xl relative">
         <div className="absolute inset-0 bg-gradient-to-b from-primary/5 to-transparent pointer-events-none" />
         
         <div className="overflow-x-auto relative">

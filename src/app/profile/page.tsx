@@ -129,13 +129,53 @@ export default async function ProfilePage() {
   const joinedDate = dbUser?.created_at || new Date().toISOString()
 
   return (
-    <div className="flex-1 container max-w-5xl py-12 md:py-16 space-y-10">
+    <div className="terminal-page-shell flex-1 relative overflow-x-hidden py-12 md:py-16 space-y-10">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] overflow-hidden">
+        <div className="absolute left-[4%] top-[-14%] h-80 w-80 rounded-full bg-primary/10 blur-[170px] opacity-80" />
+        <div className="absolute right-[8%] top-[6%] h-72 w-72 rounded-full bg-orange-500/10 blur-[150px] opacity-75" />
+      </div>
+      <div className="absolute inset-0 terminal-grid-bg opacity-[0.14] pointer-events-none" />
+
+      <section className="terminal-page-grid relative z-10 items-start animate-fade-up">
+        <div className="col-span-12 xl:col-span-8 space-y-4">
+          <div className="terminal-page-kicker">
+            <User className="h-3.5 w-3.5" />
+            Analyst Identity Matrix
+          </div>
+          <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
+            <span className="bg-gradient-to-r from-primary via-cyan-300 to-orange-300 bg-clip-text text-transparent animate-aurora">Profile Terminal</span>
+          </h1>
+          <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Review your scan performance, league status, streak quality, and account identity from a wider intelligence dashboard shell.</p>
+        </div>
+        <div className="col-span-12 xl:col-span-4">
+          <div className="terminal-page-frame p-5">
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Rank</div>
+                <div className="mt-2 text-2xl font-black text-primary">#{currentRank}</div>
+              </div>
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Streak</div>
+                <div className="mt-2 text-2xl font-black text-orange-300">{renderStats.streak}</div>
+              </div>
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Weekly</div>
+                <div className="mt-2 text-sm font-black text-cyan-300">{weeklyScans} scans</div>
+              </div>
+              <div className="col-span-6 terminal-mini-panel">
+                <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Tier</div>
+                <div className={cn("mt-2 text-sm font-black uppercase tracking-[0.16em]", tier.color)}>{tier.name}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* HEADER SECTION - 3 COLUMNS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 animate-fade-up">
+      <div className="relative z-10 grid grid-cols-12 gap-6 animate-fade-up">
 
         {/* User Card */}
-        <div className="glass p-6 rounded-[2rem] border border-border/40 relative group">
+        <div className="col-span-12 md:col-span-6 xl:col-span-4 glass p-6 rounded-[2rem] border border-border/40 relative group hover-lift-premium">
           <div className="absolute top-4 right-4 z-10 flex flex-col items-end gap-2">
             <EditProfile
               currentName={dbUser?.username || userIdentity}
@@ -182,7 +222,7 @@ export default async function ProfilePage() {
         </div>
 
         {/* Streak Card */}
-        <div className="glass p-6 rounded-[2rem] border border-border/40 relative overflow-hidden group flex flex-col items-center justify-center text-center">
+        <div className="col-span-12 md:col-span-6 xl:col-span-4 glass p-6 rounded-[2rem] border border-border/40 relative overflow-hidden group flex flex-col items-center justify-center text-center hover-lift-premium">
           <div className="h-14 w-14 rounded-2xl bg-orange-500/20 border border-orange-500/30 flex items-center justify-center text-orange-400 mb-4 shadow-lg shadow-orange-500/5">
             <Zap className="w-7 h-7" />
           </div>
@@ -193,7 +233,7 @@ export default async function ProfilePage() {
         </div>
 
         {/* Tier Card */}
-        <div className={`glass p-6 rounded-[2rem] border ${tier.border} relative overflow-hidden group flex flex-col items-center justify-center text-center`}>
+        <div className={`col-span-12 xl:col-span-4 glass p-6 rounded-[2rem] border ${tier.border} relative overflow-hidden group flex flex-col items-center justify-center text-center hover-lift-premium`}>
           <div className={`h-14 w-14 rounded-2xl ${tier.bg} border ${tier.border} flex items-center justify-center ${tier.color} mb-4 shadow-lg shadow-current/5`}>
             <Award className="w-7 h-7" />
           </div>
@@ -206,8 +246,8 @@ export default async function ProfilePage() {
       </div>
 
       {/* STATS MINI GRID */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 animate-fade-up [animation-delay:200ms]">
-        <div className="glass p-5 rounded-2xl border border-border/30 hover:border-primary/30 transition-colors">
+      <div className="relative z-10 grid grid-cols-12 gap-4 animate-fade-up [animation-delay:200ms]">
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 glass p-5 rounded-2xl border border-border/30 hover:border-primary/30 transition-colors hover-lift-premium">
           <div className="flex items-center justify-between mb-3">
             <Search className="w-4 h-4 text-blue-400" />
             <TrendingUp className="w-3 h-3 text-safe" />
@@ -217,7 +257,7 @@ export default async function ProfilePage() {
           <div className="text-[9px] text-safe font-bold mt-1">+{weeklyScans} this week</div>
         </div>
 
-        <div className="glass p-5 rounded-2xl border border-border/30 hover:border-safe/30 transition-all duration-300 group">
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 glass p-5 rounded-2xl border border-border/30 hover:border-safe/30 transition-all duration-300 group hover-lift-premium">
           <div className="flex items-center justify-between mb-3">
             <Target className="w-4 h-4 text-safe group-hover:scale-110 transition-transform" />
             <div className="text-[8px] bg-safe/10 text-safe px-2 py-0.5 rounded-full font-black">WEIGHTED</div>
@@ -229,7 +269,7 @@ export default async function ProfilePage() {
           </div>
         </div>
 
-        <div className="glass p-5 rounded-2xl border border-border/30 hover:border-warning/30 transition-colors group relative cursor-help">
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 glass p-5 rounded-2xl border border-border/30 hover:border-warning/30 transition-colors group relative cursor-help hover-lift-premium">
           <div className="flex items-center justify-between mb-3">
             <Clock className="w-4 h-4 text-warning" />
           </div>
@@ -246,7 +286,7 @@ export default async function ProfilePage() {
           )}
         </div>
 
-        <div className="glass p-5 rounded-2xl border border-border/30 hover:border-purple-400/30 transition-all duration-300 group">
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 glass p-5 rounded-2xl border border-border/30 hover:border-purple-400/30 transition-all duration-300 group hover-lift-premium">
           <div className="flex items-center justify-between mb-3">
             <TrendingUp className="w-4 h-4 text-purple-400 group-hover:scale-110 transition-transform" />
             <div className="text-[8px] bg-purple-400/10 text-purple-400 px-2 py-0.5 rounded-full font-black">HIGH CONVICTION</div>
@@ -262,8 +302,8 @@ export default async function ProfilePage() {
       </div>
 
       {/* NEW SECONDARY STATS BAR */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-up [animation-delay:300ms]">
-        <div className="glass px-6 py-4 rounded-2xl border border-border/40 flex items-center justify-between group">
+      <div className="relative z-10 grid grid-cols-12 gap-4 animate-fade-up [animation-delay:300ms]">
+        <div className="col-span-12 xl:col-span-6 glass px-6 py-4 rounded-2xl border border-border/40 flex items-center justify-between group hover-lift-premium">
           <div className="flex items-center gap-4">
             <div className="p-3 rounded-xl bg-safe/10 text-safe group-hover:bg-safe/20 transition-colors">
               <Crown className="w-5 h-5" />
@@ -276,7 +316,7 @@ export default async function ProfilePage() {
           <div className="text-[10px] font-black bg-muted/30 px-3 py-1 rounded-lg">PRO ANALYST</div>
         </div>
 
-        <div className="glass px-6 py-4 rounded-2xl border border-border/40 flex items-center justify-between group overflow-hidden relative">
+        <div className="col-span-12 xl:col-span-6 glass px-6 py-4 rounded-2xl border border-border/40 flex items-center justify-between group overflow-hidden relative hover-lift-premium">
           <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
           <div className="flex items-center gap-4 relative z-10">
             <div className="p-3 rounded-xl bg-primary/10 text-primary group-hover:bg-primary/20 transition-colors">
@@ -293,16 +333,16 @@ export default async function ProfilePage() {
       </div>
 
       {/* WALLET SETTINGS */}
-      <div className="animate-fade-up [animation-delay:350ms]">
+      <div className="relative z-10 animate-fade-up [animation-delay:350ms]">
         <WalletSettings currentWallet={userWallet} isWalletLogin={isWalletLogin} />
       </div>
 
       {/* DISCONNECT OPTION */}
-      <div className="flex justify-center md:justify-end">
+      <div className="relative z-10 flex justify-center md:justify-end">
         <LogoutButton />
       </div>
 
-      <div className="animate-fade-up [animation-delay:400ms]">
+      <div className="relative z-10 animate-fade-up [animation-delay:400ms]">
         <div className="glass rounded-[2rem] border border-border/40 px-6 py-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <div className="text-[10px] text-muted-foreground font-black uppercase tracking-widest">Scan History</div>

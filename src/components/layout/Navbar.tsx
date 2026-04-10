@@ -56,7 +56,7 @@ export function Navbar() {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/75 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/55">
       <div className="h-[2px] w-full bg-[linear-gradient(90deg,transparent,hsl(var(--primary)/0.7),transparent)]" />
-      <div className="container flex h-16 items-center justify-between gap-3 lg:h-20">
+      <div className="dashboard-shell flex h-16 items-center justify-between gap-3 lg:h-20">
         {/* Logo */}
         <Link href="/" className="flex min-w-0 items-center gap-3 group">
           <div className="relative rounded-2xl border border-primary/20 bg-card/70 p-1.5 shadow-[0_12px_30px_-18px_rgba(59,130,246,0.55)] transition-transform duration-300 group-hover:scale-105">
@@ -180,7 +180,7 @@ export function Navbar() {
       {/* Mobile Nav Dropdown */}
       {mobileOpen && (
         <div className="border-t border-border/40 bg-background/95 backdrop-blur-2xl animate-fade-in lg:hidden">
-          <nav className="container py-4">
+          <nav className="dashboard-shell py-4">
             <div className="rounded-[1.5rem] border border-border/40 bg-card/65 p-2 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.5)]">
             <div className="mb-2 flex items-center justify-between rounded-[1.2rem] border border-primary/15 bg-background/50 px-4 py-3">
               <div>

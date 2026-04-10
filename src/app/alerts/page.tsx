@@ -154,33 +154,91 @@ export default function AlertsPage() {
   }
 
   if (!ready) {
-    return <div className="container py-16">Loading alerts...</div>
+    return <div className="terminal-page-shell py-16">Loading alerts...</div>
   }
 
   if (!authenticated) {
     return (
-      <div className="container max-w-lg py-24 text-center space-y-6">
-        <div className="mx-auto w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-          <Bell className="h-8 w-8 text-amber-400" />
+      <div className="relative min-h-screen w-full overflow-x-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] overflow-hidden">
+          <div className="absolute left-[8%] top-[-10%] h-72 w-72 rounded-full bg-amber-500/10 blur-[140px]" />
+          <div className="absolute right-[10%] top-[8%] h-64 w-64 rounded-full bg-primary/10 blur-[130px]" />
         </div>
-        <h1 className="text-3xl font-black tracking-tight">Alerts</h1>
-        <p className="text-sm text-muted-foreground leading-relaxed">Log in to create token alerts and monitor score or price changes.</p>
-        <Link
-          href="/login"
-          className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
-        >
-          <LogIn className="h-4 w-4" />
-          Sign in to continue
-        </Link>
-        <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
+        <div className="terminal-page-shell relative z-10 py-24">
+          <div className="terminal-page-grid">
+            <div className="col-span-12 xl:col-span-6 xl:col-start-4 text-center space-y-6 terminal-page-frame p-8 md:p-10">
+              <div className="terminal-icon-tile mx-auto text-amber-400 border-amber-500/20 bg-amber-500/10 shadow-[0_0_30px_rgba(251,191,36,0.16)]">
+                <Bell className="h-8 w-8" />
+              </div>
+              <div className="space-y-3">
+                <div className="terminal-page-kicker">
+                  <Bell className="h-3.5 w-3.5" />
+                  Alert Terminal
+                </div>
+                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-amber-300 via-foreground to-primary bg-clip-text text-transparent">Alerts</h1>
+                <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to create token alerts and monitor score or price changes.</p>
+              </div>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in to continue
+              </Link>
+              <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="container max-w-6xl px-4 py-8 md:px-6 md:py-12 space-y-8 md:space-y-10">
+    <div className="relative min-h-screen w-full overflow-x-hidden">
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] overflow-hidden">
+        <div className="absolute left-[5%] top-[-12%] h-80 w-80 rounded-full bg-amber-500/10 blur-[160px] opacity-80" />
+        <div className="absolute right-[8%] top-[6%] h-72 w-72 rounded-full bg-primary/10 blur-[150px] opacity-70" />
+      </div>
+      <div className="absolute inset-0 terminal-grid-bg opacity-[0.18] pointer-events-none" />
+      <div className="terminal-page-shell relative z-10 py-8 md:py-12 space-y-8 md:space-y-10">
+        <section className="terminal-page-grid items-start">
+          <div className="col-span-12 xl:col-span-8 space-y-4 animate-fade-up">
+            <div className="terminal-page-kicker">
+              <Bell className="h-3.5 w-3.5" />
+              Alert Command Center
+            </div>
+            <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
+              <span className="bg-gradient-to-r from-amber-300 via-foreground to-primary bg-clip-text text-transparent animate-aurora">Price & Signal Alerts</span>
+            </h1>
+            <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Monitor price inflection points and score movement from one full-width terminal surface, with live trigger state and quick control access.</p>
+          </div>
+          <div className="col-span-12 xl:col-span-4 animate-fade-up [animation-delay:120ms]">
+            <div className="terminal-page-frame p-5">
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Active</div>
+                  <div className="mt-2 text-2xl font-black text-foreground">{alerts.filter((alert) => alert.is_active).length}</div>
+                </div>
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Total</div>
+                  <div className="mt-2 text-2xl font-black text-foreground">{alerts.length}</div>
+                </div>
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Live Price</div>
+                  <div className="mt-2 text-sm font-black text-cyan-300">{priceLoading ? "Loading" : currentPrice !== null ? `$${formatUsdValue(currentPrice)}` : "Awaiting"}</div>
+                </div>
+                <div className="col-span-6 terminal-mini-panel">
+                  <div className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/55">Status</div>
+                  <div className="mt-2 text-sm font-black uppercase tracking-[0.16em] text-amber-300">{loading ? "Syncing" : "Ready"}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="terminal-page-grid items-start">
       {/* ===== Create Alert Section ===== */}
-      <section className="relative group rounded-[2rem] border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 overflow-hidden transition-all duration-500 hover:border-primary/30">
+      <section className="col-span-12 xl:col-span-5 terminal-page-frame group p-6 md:p-8 transition-all duration-500 hover:border-primary/30 hover-lift-premium">
         {/* Top gradient accent */}
         <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/60 to-transparent opacity-60 group-hover:opacity-100 transition-opacity" />
         {/* Corner glow */}
@@ -301,7 +359,7 @@ export default function AlertsPage() {
       </section>
 
       {/* ===== Active Alerts Section ===== */}
-      <section className="relative group rounded-[2rem] border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 overflow-hidden transition-all duration-500 hover:border-primary/20">
+      <section className="col-span-12 xl:col-span-7 terminal-page-frame group p-6 md:p-8 transition-all duration-500 hover:border-primary/20 hover-lift-premium">
         <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-500/40 to-transparent opacity-40" />
         <div className="absolute -bottom-20 -left-20 w-40 h-40 bg-cyan-500/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -421,6 +479,8 @@ export default function AlertsPage() {
           </table>
         </div>
       </section>
+        </div>
+      </div>
     </div>
   )
 }
