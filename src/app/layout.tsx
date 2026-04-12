@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/layout/Navbar";
+import { defaultDescription, defaultKeywords, defaultTitle, siteName, siteUrl } from "@/lib/seo";
 
 const FloatingAiChat = dynamic(
   () => import("@/components/FloatingAiChat").then((module) => module.FloatingAiChat),
@@ -14,10 +15,38 @@ const FloatingAiChat = dynamic(
 );
 
 export const metadata: Metadata = {
-  title: "TokenSight AI - Smart Token Discovery",
-  description:
-    "AI-powered token intelligence. Analyze both early-stage and established tokens across the ecosystem for confident, data-driven entry decisions.",
-  keywords: ["crypto", "token intelligence", "scanner", "AI", "defi", "entry signals", "smart money"],
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: defaultTitle,
+    template: `%s | ${siteName}`,
+  },
+  description: defaultDescription,
+  applicationName: siteName,
+  keywords: defaultKeywords,
+  category: "finance",
+  icons: {
+    icon: "/logo.png",
+    apple: "/logo.png",
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      "max-image-preview": "large",
+      "max-snippet": -1,
+      "max-video-preview": -1,
+    },
+  },
+  openGraph: {
+    siteName,
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({

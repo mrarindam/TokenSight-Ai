@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
 import { Plus, Bell, X, Loader2, LogIn } from "lucide-react"
-import type { ScanResult } from "@/app/scan/page"
+import type { ScanResult } from "@/app/scan/ScanPageClient"
 
 interface QuickActionsProps {
   result: ScanResult
