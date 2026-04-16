@@ -25,6 +25,9 @@ export const defaultKeywords = [
   "scan solana token",
 ];
 
+export const googleAdsenseAccount = "ca-pub-9281250768304678";
+
+
 export function buildCanonicalUrl(path: string = "/") {
   return new URL(path, siteUrl).toString();
 }

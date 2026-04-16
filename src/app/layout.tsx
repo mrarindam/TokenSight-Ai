@@ -17,6 +17,7 @@ import {
   defaultDescription,
   defaultKeywords,
   defaultTitle,
+  googleAdsenseAccount,
   siteName,
   siteUrl,
 } from "@/lib/seo";
@@ -64,6 +65,9 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
+  },
+  other: {
+    "google-adsense-account": googleAdsenseAccount,
   },
 };
 
