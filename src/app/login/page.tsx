@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useAuthFetch } from "@/lib/useAuthFetch"
 import { Loader2 } from "lucide-react"
 import Image from "next/image"
+import { brandIconPath } from "@/lib/seo"
 
 export default function LoginPage() {
   const router = useRouter()
@@ -66,13 +67,15 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#020408] px-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-        <Image
-          src="/logo.png"
-          alt="TokenSight AI"
-          width={72}
-          height={72}
-          className="h-16 w-16 object-contain"
-        />
+        <div className="overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#020408] p-1.5 shadow-[0_18px_45px_-24px_rgba(59,130,246,0.45)]">
+          <Image
+            src={brandIconPath}
+            alt="TokenSight AI"
+            width={72}
+            height={72}
+            className="h-16 w-16 rounded-[1rem] object-cover"
+          />
+        </div>
         <div className="space-y-2">
           <h1 className="text-2xl font-black tracking-tight text-white">Opening sign-in</h1>
           <p className="text-sm text-white/50">

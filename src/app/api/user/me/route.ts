@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
+import { supabaseAdmin } from "@/lib/supabaseAdmin"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -11,14 +12,23 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  const { data: dbUser } = await supabaseAdmin
+    .from("users")
+    .select("id, username, display_name, avatar_url, wallet, email, twitter_handle")
+    .eq("id", authUser.id)
+    .maybeSingle()
+
+  const resolvedUser = dbUser || authUser
+
   return NextResponse.json({
     user: {
-      id: authUser.id,
-      username: authUser.username || null,
-      display_name: authUser.display_name || null,
-      wallet: authUser.wallet || null,
-      email: authUser.email || null,
-      twitter_handle: authUser.twitter_handle || null,
+      id: resolvedUser.id,
+      username: resolvedUser.username || null,
+      display_name: resolvedUser.display_name || null,
+      avatar_url: resolvedUser.avatar_url || null,
+      wallet: resolvedUser.wallet || null,
+      email: resolvedUser.email || null,
+      twitter_handle: resolvedUser.twitter_handle || null,
     },
   })
 }

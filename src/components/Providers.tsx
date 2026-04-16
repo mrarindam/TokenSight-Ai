@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth"
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana"
+import { brandIconPath } from "@/lib/seo"
 
 const solanaConnectors = toSolanaWalletConnectors()
 
@@ -14,7 +15,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: "dark",
           accentColor: "#6366f1",
-          logo: "/logo.png",
+          logo: brandIconPath,
           showWalletLoginFirst: false,
         },
         embeddedWallets: {

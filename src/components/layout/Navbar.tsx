@@ -4,9 +4,12 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
-import { Menu, X, Scan, Trophy, User, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, Sparkles, BookOpen } from "lucide-react"
+import { usePrivy } from "@privy-io/react-auth"
+import { Menu, X, Scan, Trophy, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, BookOpen, LogIn, BadgeInfo, MessageSquareText } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
+import { useAuthFetch } from "@/lib/useAuthFetch"
+import { brandIconPath } from "@/lib/seo"
 import { cn } from "@/lib/utils"
 
 const PRIMARY_NAV_ITEMS = [
@@ -14,14 +17,15 @@ const PRIMARY_NAV_ITEMS = [
   { href: "/scan", label: "Scan", icon: Scan },
   { href: "/portfolio", label: "Portfolio", icon: Target },
   { href: "/alerts", label: "Alerts", icon: ShieldAlert },
+  { href: "/docs", label: "Docs", icon: BookOpen },
 ]
 
 const SECONDARY_NAV_ITEMS = [
+  { href: "/about", label: "About Us", icon: BadgeInfo },
+  { href: "/contact", label: "Contact Us", icon: MessageSquareText },
   { href: "/scan/history", label: "History", icon: History },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
-  { href: "/docs", label: "Docs", icon: BookOpen },
   { href: "/settings/telegram", label: "Telegram", icon: Settings },
-  { href: "/profile", label: "Profile", icon: User },
 ]
 
 const MOBILE_NAV_ITEMS = [
@@ -29,10 +33,22 @@ const MOBILE_NAV_ITEMS = [
   ...SECONDARY_NAV_ITEMS,
 ]
 
+type NavbarUser = {
+  username: string | null
+  display_name: string | null
+  avatar_url?: string | null
+  wallet: string | null
+  email: string | null
+  twitter_handle: string | null
+}
+
 export function Navbar() {
   const pathname = usePathname()
+  const { authenticated, ready, user } = usePrivy()
+  const authFetch = useAuthFetch()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [moreOpen, setMoreOpen] = useState(false)
+  const [navUser, setNavUser] = useState<NavbarUser | null>(null)
   const moreMenuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
@@ -51,7 +67,62 @@ export function Navbar() {
     return () => document.removeEventListener("mousedown", handleClickOutside)
   }, [])
 
+  useEffect(() => {
+    let active = true
+
+    async function loadNavUser() {
+      if (!ready) {
+        return
+      }
+
+      if (!authenticated) {
+        setNavUser(null)
+        return
+      }
+
+      try {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          const response = await authFetch("/api/user/me", { cache: "no-store" })
+
+          if (response.ok) {
+            const data = await response.json()
+            if (active) {
+              setNavUser(data.user ?? null)
+            }
+            return
+          }
+
+          await new Promise((resolve) => setTimeout(resolve, 350))
+        }
+      } catch {
+        if (active) {
+          setNavUser(null)
+        }
+      }
+    }
+
+    void loadNavUser()
+
+    return () => {
+      active = false
+    }
+  }, [authFetch, authenticated, ready])
+
   const isSecondaryActive = SECONDARY_NAV_ITEMS.some((item) => pathname === item.href)
+  const privyFallbackName =
+    user?.google?.name ||
+    user?.twitter?.username ||
+    user?.github?.username ||
+    user?.email?.address ||
+    user?.wallet?.address ||
+    "Profile"
+  const profileName = navUser?.display_name || navUser?.username || privyFallbackName
+  const profileLabel =
+    profileName.length > 16
+      ? `${profileName.slice(0, 13)}...`
+      : profileName
+  const profileInitial = profileName.charAt(0).toUpperCase()
+  const profileHref = authenticated ? "/profile" : "/login"
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/75 backdrop-blur-2xl supports-[backdrop-filter]:bg-background/55">
@@ -59,14 +130,16 @@ export function Navbar() {
       <div className="dashboard-shell flex h-16 items-center justify-between gap-3 lg:h-20">
         {/* Logo */}
         <Link href="/" className="flex min-w-0 items-center gap-3 group">
-          <div className="relative rounded-2xl border border-primary/20 bg-card/70 p-1.5 shadow-[0_12px_30px_-18px_rgba(59,130,246,0.55)] transition-transform duration-300 group-hover:scale-105">
-            <Image 
-              src="/logo.png" 
-              alt="TokenSight AI Logo" 
-              width={32}
-              height={32}
-              className="h-8 w-8"
-            />
+          <div className="relative rounded-2xl border border-primary/20 bg-card/70 p-1 shadow-[0_12px_30px_-18px_rgba(59,130,246,0.55)] transition-transform duration-300 group-hover:scale-105">
+            <div className="overflow-hidden rounded-[0.9rem] bg-[#020408] ring-1 ring-white/6">
+              <Image 
+                src={brandIconPath}
+                alt="TokenSight AI Logo" 
+                width={34}
+                height={34}
+                className="h-[34px] w-[34px] object-cover"
+              />
+            </div>
             <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.95)]" />
           </div>
           <div className="min-w-0">
@@ -111,11 +184,6 @@ export function Navbar() {
 
         {/* Right side actions */}
         <div className="flex items-center gap-2 lg:gap-3">
-          <div className="hidden xl:flex items-center gap-2 rounded-full border border-border/40 bg-card/65 px-3 py-2 text-[11px] font-medium text-muted-foreground shadow-[0_12px_24px_-20px_rgba(0,0,0,0.55)]">
-            <Sparkles className="h-3.5 w-3.5 text-primary" />
-            AI Signal Engine Active
-          </div>
-
           <div ref={moreMenuRef} className="relative hidden lg:block">
             <button
               type="button"
@@ -164,6 +232,41 @@ export function Navbar() {
             ) : null}
           </div>
 
+          <Link
+            href={profileHref}
+            className={cn(
+              "hidden lg:inline-flex items-center gap-2 rounded-full border px-3 py-2 text-sm font-medium transition-all duration-200",
+              authenticated && ready
+                ? "border-primary/20 bg-card/70 text-foreground shadow-[0_12px_24px_-18px_rgba(59,130,246,0.35)] hover:border-primary/35 hover:-translate-y-0.5"
+                : "border-border/40 bg-card/60 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
+            )}
+          >
+            {authenticated && ready ? (
+              <>
+                <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-black uppercase text-primary">
+                  {navUser?.avatar_url ? (
+                    <Image
+                      src={navUser.avatar_url}
+                      alt={profileName}
+                      width={32}
+                      height={32}
+                      className="h-full w-full object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    profileInitial
+                  )}
+                </span>
+                <span className="max-w-[170px] truncate" title={profileName}>{profileLabel}</span>
+              </>
+            ) : (
+              <>
+                <LogIn className="h-4 w-4" />
+                Login
+              </>
+            )}
+          </Link>
+
           <ThemeToggle />
 
           {/* Mobile hamburger */}
@@ -211,6 +314,34 @@ export function Navbar() {
                 </Link>
               )
             })}
+            <Link
+              href={profileHref}
+              onClick={() => setMobileOpen(false)}
+              className={cn(
+                "mt-2 flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200",
+                authenticated && ready
+                  ? "bg-primary/10 text-primary"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              )}
+            >
+              <span className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full border border-primary/20 bg-primary/10 text-xs font-black uppercase text-primary">
+                {authenticated && ready && navUser?.avatar_url ? (
+                  <Image
+                    src={navUser.avatar_url}
+                    alt={profileName}
+                    width={36}
+                    height={36}
+                    className="h-full w-full object-cover"
+                    unoptimized
+                  />
+                ) : authenticated && ready ? (
+                  profileInitial
+                ) : (
+                  <LogIn className="h-4 w-4" />
+                )}
+              </span>
+              <span>{authenticated && ready ? "Profile" : "Login"}</span>
+            </Link>
             </div>
           </nav>
         </div>

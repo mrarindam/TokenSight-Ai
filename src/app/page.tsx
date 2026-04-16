@@ -1,5 +1,5 @@
 import HomePageClient from "./HomePageClient";
-import { buildCanonicalUrl, buildPageMetadata, siteName, siteUrl } from "@/lib/seo";
+import { brandIconLargePath, buildCanonicalUrl, buildPageMetadata, siteName, siteUrl } from "@/lib/seo";
 
 export const metadata = buildPageMetadata({
   title: "Solana Token Scanner & Rug Checker",
@@ -14,7 +14,7 @@ const homeStructuredData = [
     "@type": "Organization",
     name: siteName,
     url: siteUrl,
-    logo: buildCanonicalUrl("/logo.png"),
+    logo: buildCanonicalUrl(brandIconLargePath),
   },
   {
     "@context": "https://schema.org",

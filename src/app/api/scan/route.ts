@@ -229,20 +229,20 @@ export async function POST(request: Request) {
 
         try {
           let rawDex = await fetchDex(address)
-          
+
           // Retry Logic: If no pairs found, wait 500ms and try one more time
           if (!rawDex?.pairs || rawDex.pairs.length === 0) {
-          if (process.env.NODE_ENV === "development") {
-            console.log(`[SCAN_ENGINE] DexScreener empty for ${address}. Retrying...`)
+            if (process.env.NODE_ENV === "development") {
+              console.log(`[SCAN_ENGINE] DexScreener empty for ${address}. Retrying...`)
+            }
+            await new Promise(resolve => setTimeout(resolve, 500))
+            rawDex = await fetchDex(address)
           }
-          await new Promise(resolve => setTimeout(resolve, 500))
-          rawDex = await fetchDex(address)
-        }
 
-        if (process.env.NODE_ENV === "development") {
-          console.log("DEX DATA:", rawDex)
-          console.log(`[SCAN_ENGINE] DexScreener Lookup: pairs=${rawDex?.pairs?.length || 0}`)
-        }
+          if (process.env.NODE_ENV === "development") {
+            console.log("DEX DATA:", rawDex)
+            console.log(`[SCAN_ENGINE] DexScreener Lookup: pairs=${rawDex?.pairs?.length || 0}`)
+          }
           return rawDex
         } catch (e) {
           console.warn("[SCAN_ENGINE] DexScreener API Error:", e)
@@ -292,7 +292,7 @@ export async function POST(request: Request) {
         if (fallbackRes.ok) {
           const fallbackData = await fallbackRes.json()
           // Filter pairs to find one that matches our address or is likely the same token
-          const matchingPair = fallbackData.pairs?.find((p: { baseToken?: { address?: string, symbol?: string } }) => 
+          const matchingPair = fallbackData.pairs?.find((p: { baseToken?: { address?: string, symbol?: string } }) =>
             p.baseToken?.address?.toLowerCase() === address.toLowerCase() ||
             p.baseToken?.symbol?.toLowerCase() === bagsSymbol.toLowerCase()
           )
@@ -304,7 +304,7 @@ export async function POST(request: Request) {
           }
         }
       } catch (e) {
-         console.warn("[SCAN_ENGINE] DexScreener Fallback Error:", e)
+        console.warn("[SCAN_ENGINE] DexScreener Fallback Error:", e)
       }
     }
 
@@ -421,7 +421,7 @@ export async function POST(request: Request) {
     const creatorBehavior = HELIUS_API_KEY
       ? await fetchHeliusCreatorBehavior(rawHeliusAsset, HELIUS_API_KEY)
       : { creatorAddress: null, createdTokens: null, source: null }
-    const holdersCount = holderSnapshot.holdersCount ?? rawJupiterToken?.holderCount ?? birdeyeToken?.holders ?? null
+    const holdersCount = rawJupiterToken?.holderCount ?? null
     const topHolderPct = holderSnapshot.topHolderPct ?? rawJupiterToken?.audit?.topHoldersPercentage ?? null
     const whaleWarning = holderSnapshot.topHolderPct !== null
       ? holderSnapshot.whaleWarning
@@ -488,18 +488,18 @@ export async function POST(request: Request) {
     const suspicious = rawJupiterToken?.audit?.isSus || false
     const honeypotRisk = suspicious
       ? {
-          level: "critical",
-          summary: "Jupiter audit flagged this token as suspicious. Treat tradability and token behavior as high risk.",
-        }
+        level: "critical",
+        summary: "Jupiter audit flagged this token as suspicious. Treat tradability and token behavior as high risk.",
+      }
       : rawJupiterToken
         ? {
-            level: "low",
-            summary: "No direct suspicious-trading flag was returned by Jupiter audit data.",
-          }
+          level: "low",
+          summary: "No direct suspicious-trading flag was returned by Jupiter audit data.",
+        }
         : {
-            level: "unknown",
-            summary: "No honeypot-specific signal is available from the current API set.",
-          }
+          level: "unknown",
+          summary: "No honeypot-specific signal is available from the current API set.",
+        }
 
     if (process.env.NODE_ENV === "development") {
       console.log("HOLDER DEBUG:", {
@@ -511,8 +511,8 @@ export async function POST(request: Request) {
 
     // --- STEP 3: PREPARE VARIABLES WITH FAILSAFES ---
     // Liquidity Failsafe: Birdeye/Dex > fallback metadata > null
-    const liquidity = (dexLiquidity !== null && dexLiquidity !== undefined) 
-      ? dexLiquidity 
+    const liquidity = (dexLiquidity !== null && dexLiquidity !== undefined)
+      ? dexLiquidity
       : (bagsToken?.liquidity || null)
 
     // Volume Failsafe: Dex > Bags > null (Discovery Phase)
@@ -893,7 +893,7 @@ export async function POST(request: Request) {
           price: priceSource,
           liquidity: liquiditySource !== "unknown" ? liquiditySource : bagsToken?.liquidity ? "bags" : "unknown",
           volume: volumeSource !== "unknown" ? volumeSource : bagsToken?.volume || bagsToken?.volume24h ? "bags" : "unknown",
-          holders: holderSnapshot.holdersCount !== null ? "helius" : birdeyeToken?.holders !== null && birdeyeToken?.holders !== undefined ? "birdeye" : "unknown",
+          holders: rawJupiterToken?.holderCount !== null && rawJupiterToken?.holderCount !== undefined ? "jupiter" : "unknown",
           whale: holderSnapshot.topHolderPct !== null ? "helius" : "unknown",
           creator: creatorBehavior.createdTokens !== null ? "helius" : creatorTokenBase !== null ? "bags" : "unknown",
           metadata: fallbackBagsToken ? "bags" : birdeyeToken ? "birdeye" : "unknown",
@@ -1192,10 +1192,6 @@ function formatAge(ageHours: number): string {
   return `${Math.round(ageHours / (24 * 7))}w`
 }
 
-function roundPct(value: number): number {
-  return Math.round(value * 100) / 100
-}
-
 function getTopHolderLabel(holders: number | null, breakdownCount: number): string {
   if (holders !== null && holders <= 1) return "1 Wallet"
   if (holders !== null && holders <= 10) return `Top ${holders} Wallets`
@@ -1334,86 +1330,48 @@ function buildReadableSummary(input: {
   return lines.join("\n")
 }
 
-async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promise<HolderSnapshot> {
-  try {
-    const ownerBalances = new Map<string, number>()
-    const limit = 1000
-    let currentPage = 1
-    const maxPages = 250
-    let expectedTotalAccounts: number | null = null
-    let fetchedTokenAccounts = 0
-    let lastPageSize = 0
-    let snapshotComplete = true
+function roundPctFromBigInt(numerator: bigint, denominator: bigint): number {
+  if (denominator <= BigInt(0)) return 0
+  const scaled = (numerator * BigInt(10000) + denominator / BigInt(2)) / denominator
+  return Number(scaled) / 100
+}
 
-    while (currentPage <= maxPages) {
-      const heliusRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promise<HolderSnapshot> {
+  if (!heliusApiKey) {
+    return {
+      holdersCount: null,
+      topHolderPct: null,
+      whaleWarning: false,
+      holderBreakdown: [],
+      isPartialSnapshot: false,
+    }
+  }
+
+  try {
+    const [largestAccountsRes, tokenSupplyRes] = await Promise.all([
+      fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           jsonrpc: "2.0",
-          id: `holders-${currentPage}`,
-          method: "getTokenAccounts",
-          params: {
-            mint: address,
-            page: currentPage,
-            limit,
-          },
+          id: "largest-holders",
+          method: "getTokenLargestAccounts",
+          params: [address],
         }),
-      })
+      }),
+      fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: "token-supply",
+          method: "getTokenSupply",
+          params: [address],
+        }),
+      }),
+    ])
 
-      if (heliusRes.status === 429) {
-        console.error("[SCAN_ENGINE] Helius Rate Limit (429) Triggered")
-        snapshotComplete = false
-        break
-      }
-
-      if (!heliusRes.ok) {
-        snapshotComplete = false
-        break
-      }
-
-      const rawHelius = await heliusRes.json()
-      const reportedTotal = Number(rawHelius.result?.total || 0)
-      if (Number.isFinite(reportedTotal) && reportedTotal > 0) {
-        expectedTotalAccounts = reportedTotal
-      }
-
-      const accounts: { owner?: string; amount?: number }[] = rawHelius.result?.token_accounts || []
-      lastPageSize = accounts.length
-      if (accounts.length === 0) {
-        break
-      }
-
-      fetchedTokenAccounts += accounts.length
-
-      accounts.forEach((account) => {
-        const owner = account.owner || "unknown"
-        const amount = Number(account.amount || 0)
-        ownerBalances.set(owner, (ownerBalances.get(owner) || 0) + amount)
-      })
-
-      if (process.env.NODE_ENV === "development") {
-        console.log(`[SCAN_ENGINE] HELIUS RAW (Page ${currentPage}):`, {
-          total: expectedTotalAccounts,
-          returned: accounts.length,
-          fetchedTokenAccounts,
-        })
-      }
-
-      const reachedReportedEnd = expectedTotalAccounts !== null && fetchedTokenAccounts >= expectedTotalAccounts
-      if (reachedReportedEnd || accounts.length < limit) {
-        break
-      }
-
-      currentPage++
-    }
-
-    if (currentPage > maxPages && lastPageSize === limit) {
-      snapshotComplete = false
-      console.warn(`[SCAN_ENGINE] Holder snapshot reached max page limit for ${address}`)
-    }
-
-    if (ownerBalances.size === 0) {
+    if (!largestAccountsRes.ok || !tokenSupplyRes.ok) {
       return {
         holdersCount: null,
         topHolderPct: null,
@@ -1423,28 +1381,27 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
       }
     }
 
-    const reachedReportedEnd = expectedTotalAccounts !== null && fetchedTokenAccounts >= expectedTotalAccounts
-    const reachedNaturalEnd = lastPageSize > 0 && lastPageSize < limit
-    if (!reachedReportedEnd && !reachedNaturalEnd) {
-      snapshotComplete = false
-    }
+    const largestAccountsPayload = await largestAccountsRes.json().catch(() => null) as Record<string, unknown> | null
+    const tokenSupplyPayload = await tokenSupplyRes.json().catch(() => null) as Record<string, unknown> | null
 
-    if (!snapshotComplete) {
-      // Return partial data with caution flag instead of empty
-      return {
-        holdersCount: expectedTotalAccounts ?? ownerBalances.size,
-        topHolderPct: null,
-        whaleWarning: false,
-        holderBreakdown: [],
-        isPartialSnapshot: true,
+    const largestAccountsResult = asRecord(largestAccountsPayload?.result)
+    const largestAccounts = Array.isArray(largestAccountsResult?.value) ? largestAccountsResult.value : []
+
+    const supplyValue = asRecord(asRecord(tokenSupplyPayload?.result)?.value)
+    const totalSupplyRaw = (() => {
+      const amountString = pickString(supplyValue, ["amount"])
+      if (!amountString) return BigInt(0)
+
+      try {
+        return BigInt(amountString)
+      } catch {
+        return BigInt(0)
       }
-    }
+    })()
 
-    const sortedBalances = Array.from(ownerBalances.values()).sort((a, b) => b - a)
-    const totalSupply = sortedBalances.reduce((sum, amount) => sum + amount, 0)
-    if (totalSupply <= 0) {
+    if (largestAccounts.length === 0 || totalSupplyRaw <= BigInt(0)) {
       return {
-        holdersCount: ownerBalances.size,
+        holdersCount: null,
         topHolderPct: null,
         whaleWarning: false,
         holderBreakdown: [],
@@ -1452,25 +1409,92 @@ async function fetchHolderSnapshot(address: string, heliusApiKey: string): Promi
       }
     }
 
-    const sortedEntries = Array.from(ownerBalances.entries()).sort((a, b) => b[1] - a[1])
-    const breakdownCount = Math.min(sortedEntries.length, 10)
-    const holderBreakdown = sortedEntries.slice(0, breakdownCount).map(([addr, amount], index) => ({
+    const tokenAccounts = largestAccounts
+      .map((entry) => {
+        const record = asRecord(entry)
+        const tokenAccount = pickString(record, ["address"])
+        const amountString = pickString(record, ["amount"])
+
+        if (!tokenAccount || !amountString) return null
+
+        try {
+          return {
+            tokenAccount,
+            amount: BigInt(amountString),
+          }
+        } catch {
+          return null
+        }
+      })
+      .filter((entry): entry is { tokenAccount: string; amount: bigint } => Boolean(entry))
+
+    if (tokenAccounts.length === 0) {
+      return {
+        holdersCount: null,
+        topHolderPct: null,
+        whaleWarning: false,
+        holderBreakdown: [],
+        isPartialSnapshot: false,
+      }
+    }
+
+    const ownersRes = await fetch(`https://mainnet.helius-rpc.com/?api-key=${heliusApiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: "largest-holder-owners",
+        method: "getMultipleAccounts",
+        params: [
+          tokenAccounts.map((entry) => entry.tokenAccount),
+          { encoding: "jsonParsed" },
+        ],
+      }),
+    })
+
+    const ownersPayload = ownersRes.ok
+      ? await ownersRes.json().catch(() => null) as Record<string, unknown> | null
+      : null
+    const ownerValues = Array.isArray(asRecord(ownersPayload?.result)?.value)
+      ? (asRecord(ownersPayload?.result)?.value as unknown[])
+      : []
+
+    const ownerBalances = new Map<string, bigint>()
+
+    tokenAccounts.forEach((entry, index) => {
+      const ownerRecord = asRecord(ownerValues[index])
+      const ownerAddress =
+        pickNestedString(ownerRecord, [["data", "parsed", "info", "owner"]]) ||
+        entry.tokenAccount
+
+      ownerBalances.set(ownerAddress, (ownerBalances.get(ownerAddress) || BigInt(0)) + entry.amount)
+    })
+
+    const sortedEntries = Array.from(ownerBalances.entries()).sort((a, b) => {
+      if (a[1] === b[1]) return 0
+      return a[1] > b[1] ? -1 : 1
+    })
+
+    const holderBreakdown = sortedEntries.slice(0, 10).map(([addr, amount], index) => ({
       rank: index + 1,
-      pct: roundPct((amount / totalSupply) * 100),
+      pct: roundPctFromBigInt(amount, totalSupplyRaw),
       address: addr,
     }))
-    const topSliceSum = sortedBalances.slice(0, breakdownCount).reduce((sum, amount) => sum + amount, 0)
-    const topHolderPct = roundPct((topSliceSum / totalSupply) * 100)
+
+    const topTenBalance = sortedEntries
+      .slice(0, 10)
+      .reduce((sum, [, amount]) => sum + amount, BigInt(0))
+    const topHolderPct = roundPctFromBigInt(topTenBalance, totalSupplyRaw)
 
     return {
-      holdersCount: ownerBalances.size,
+      holdersCount: null,
       topHolderPct,
       whaleWarning: topHolderPct > 50,
       holderBreakdown,
       isPartialSnapshot: false,
     }
   } catch (error) {
-    console.warn("[SCAN_ENGINE] Helius holder snapshot error:", error)
+    console.warn("[SCAN_ENGINE] Helius largest holder snapshot error:", error)
     return {
       holdersCount: null,
       topHolderPct: null,
@@ -1890,19 +1914,19 @@ async function fetchJupiterTokenSnapshot(address: string, jupiterApiKey: string)
       tags: Array.isArray(record.tags) ? record.tags.filter((tag): tag is string => typeof tag === "string") : [],
       firstPool: firstPool
         ? {
-            id: pickString(firstPool, ["id"]),
-            createdAt: pickString(firstPool, ["createdAt"]),
-          }
+          id: pickString(firstPool, ["id"]),
+          createdAt: pickString(firstPool, ["createdAt"]),
+        }
         : null,
       audit: audit
         ? {
-            isSus: pickBoolean(audit, ["isSus"]) || false,
-            mintAuthorityDisabled: pickBoolean(audit, ["mintAuthorityDisabled"]),
-            freezeAuthorityDisabled: pickBoolean(audit, ["freezeAuthorityDisabled"]),
-            topHoldersPercentage: pickNumber(audit, ["topHoldersPercentage"]),
-            devBalancePercentage: pickNumber(audit, ["devBalancePercentage"]),
-            devMints: pickNumber(audit, ["devMints"]),
-          }
+          isSus: pickBoolean(audit, ["isSus"]) || false,
+          mintAuthorityDisabled: pickBoolean(audit, ["mintAuthorityDisabled"]),
+          freezeAuthorityDisabled: pickBoolean(audit, ["freezeAuthorityDisabled"]),
+          topHoldersPercentage: pickNumber(audit, ["topHoldersPercentage"]),
+          devBalancePercentage: pickNumber(audit, ["devBalancePercentage"]),
+          devMints: pickNumber(audit, ["devMints"]),
+        }
         : null,
       stats5m: parseJupiterStatsWindow(asRecord(record.stats5m)),
       stats1h: parseJupiterStatsWindow(asRecord(record.stats1h)),

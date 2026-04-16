@@ -210,6 +210,24 @@ interface ScanResult {
 
 export type { ScanResult }
 
+const EXAMPLE_TOKENS = [
+  {
+    label: "JUP",
+    address: "JUPyiwrYJFskUPiHa7hkeR8VUtAeFoSYbKedZNsDvCN",
+    note: "Jupiter",
+  },
+  {
+    label: "PNUT",
+    address: "2qEHjDLDLbuBgRYvsxhc5D6uDWAivNFZGan56P1tpump",
+    note: "Peanut the Squirrel",
+  },
+  {
+    label: "LOL",
+    address: "34q2KmCvapecJgR6ZrtbCTrzZVtkt3a5mHEA3TuEsWYb",
+    note: "Meme token",
+  },
+] as const
+
 const renderHighlightedSummary = (text: string) => {
   if (!text) return null
 
@@ -390,6 +408,20 @@ function ScanPageContent() {
     }
   }, [address, isScanning, limitReached, anonCount, isAuthenticated, router, authFetch])
 
+  const handleExampleSelect = useCallback((exampleAddress: string) => {
+    setAddress(exampleAddress)
+    setErrorMsg("")
+    setLimitAlert(false)
+
+    if (urlAddress === exampleAddress) {
+      void handleScan(exampleAddress)
+      return
+    }
+
+    hasStartedScan.current = null
+    router.push(`/scan?address=${encodeURIComponent(exampleAddress)}`)
+  }, [handleScan, router, urlAddress])
+
   useEffect(() => {
     if (urlAddress) {
       // Force scroll to top immediately on navigation from feed
@@ -568,6 +600,38 @@ function ScanPageContent() {
                 </div>
               )}
             </Button>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-border/20 bg-card/35 p-4 backdrop-blur-xl">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.24em] text-primary/80">Try An Example</p>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Click a sample contract to auto-fill the address and start a live scan.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {EXAMPLE_TOKENS.map((token) => (
+                  <button
+                    key={token.address}
+                    type="button"
+                    onClick={() => handleExampleSelect(token.address)}
+                    className="group rounded-2xl border border-border/30 bg-background/40 px-4 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-primary/10"
+                  >
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-black text-foreground">{token.label}</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/60">
+                        {token.note}
+                      </span>
+                    </div>
+                    <div className="mt-1 font-mono text-xs text-muted-foreground transition-colors group-hover:text-foreground">
+                      {truncateAddress(token.address, 8, 8)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
 
           {isScanning && scanPhase && (

@@ -2,6 +2,13 @@ import type { Metadata } from "next";
 
 export const siteName = "TokenSight AI";
 export const siteUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || "https://tokensightai.tech";
+export const brandIconPath = "/icons/android-chrome-192x192.png";
+export const brandIconLargePath = "/icons/android-chrome-512x512.png";
+export const brandAppleIconPath = "/icons/apple-touch-icon.png";
+export const brandFaviconPath = "/icons/favicon.ico";
+export const brandFavicon32Path = "/icons/favicon-32x32.png";
+export const brandFavicon16Path = "/icons/favicon-16x16.png";
+export const brandManifestPath = "/icons/site.webmanifest";
 
 export const defaultTitle = "Solana Token Scanner & Rug Checker | TokenSight AI";
 export const defaultDescription =

@@ -1,7 +1,7 @@
 ﻿'use client'
 
 import React, { useState } from 'react'
-import { Plus, Minus, MessageSquare, HelpCircle, ArrowRight } from 'lucide-react'
+import { Plus, Minus, HelpCircle } from 'lucide-react'
 import { cn } from "@/lib/utils"
 
 interface FAQItemProps {
@@ -128,60 +128,6 @@ export default function FAQ() {
               />
             ))}
           </div>
-        </div>
-
-        {/* CTA BOTTOM */}
-        <div className="mt-12 text-center animate-in fade-in slide-in-from-bottom duration-700 delay-500">
-           <div className="flex flex-col items-center gap-6">
-              <div className="flex items-center gap-3 glass py-4 px-8 rounded-2xl border border-white/5">
-                 <div className="h-10 w-10 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shadow-lg shadow-primary/5">
-                    <MessageSquare className="h-5 w-5" />
-                 </div>
-                 <div className="text-left">
-                    <p className="text-xs font-black uppercase tracking-widest text-muted-foreground/60">Still have questions?</p>
-                    <p className="text-sm font-bold text-foreground">Join our active surveillance community.</p>
-                 </div>
-              </div>
-              
-              <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-4">
-                 <a 
-                   href="https://t.me/MrxArindam" 
-                   target="_blank" 
-                   rel="noopener noreferrer"
-                   className={cn(
-                     "inline-flex items-center justify-center h-12 px-8 rounded-xl border border-primary/20 bg-primary/5 text-primary hover:bg-primary hover:text-white transition-all duration-500 font-bold tracking-tight text-xs uppercase shadow-lg shadow-primary/5"
-                   )}
-                 >
-                    Join Telegram
-                 </a>
-                 <a 
-                   href="https://mrarindam.vercel.app/" 
-                   target="_blank" 
-                   rel="noopener noreferrer"
-                   className={cn(
-                     "inline-flex items-center justify-center h-12 px-8 rounded-xl border border-border/50 transition-all duration-500 font-black tracking-tight text-xs uppercase shadow-sm",
-                     "bg-slate-200/50 text-slate-700 hover:bg-slate-200",
-                     "dark:bg-slate-800/40 dark:text-slate-200 dark:hover:bg-slate-800"
-                   )}
-                 >
-                    CEO Website
-                 </a>
-                 <a 
-                   href="mailto:marindam342@gmail.com"
-                   className={cn(
-                     "inline-flex items-center justify-center h-12 px-8 rounded-xl text-muted-foreground hover:text-foreground transition-colors text-xs font-black uppercase tracking-widest"
-                   )}
-                 >
-                    Send Mail <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                 </a>
-              </div>
-
-              {/* CEO LOGO / BRANDING SUBTLE */}
-              <div className="pt-4 opacity-40 hover:opacity-100 transition-opacity flex flex-col items-center gap-1 group">
-                 <div className="text-[10px] font-black tracking-[0.5em] text-foreground/50 group-hover:text-primary transition-colors">THE NETWORK LEAD & DEVELOPED BY</div>
-                 <div className="text-xl font-black italic tracking-tighter text-foreground">ARINDAM <span className="text-primary text-[6px] not-italic align-top ml-0.5">Â©</span></div>
-              </div>
-           </div>
         </div>
       </div>
     </section>

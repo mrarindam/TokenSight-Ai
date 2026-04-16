@@ -7,7 +7,19 @@ import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Providers } from "@/components/Providers";
 import { Navbar } from "@/components/layout/Navbar";
-import { defaultDescription, defaultKeywords, defaultTitle, siteName, siteUrl } from "@/lib/seo";
+import { SiteFooter } from "@/components/layout/SiteFooter";
+import {
+  brandAppleIconPath,
+  brandFavicon16Path,
+  brandFavicon32Path,
+  brandFaviconPath,
+  brandManifestPath,
+  defaultDescription,
+  defaultKeywords,
+  defaultTitle,
+  siteName,
+  siteUrl,
+} from "@/lib/seo";
 
 const FloatingAiChat = dynamic(
   () => import("@/components/FloatingAiChat").then((module) => module.FloatingAiChat),
@@ -25,9 +37,15 @@ export const metadata: Metadata = {
   keywords: defaultKeywords,
   category: "finance",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: [
+      { url: brandFaviconPath, sizes: "any" },
+      { url: brandFavicon32Path, sizes: "32x32", type: "image/png" },
+      { url: brandFavicon16Path, sizes: "16x16", type: "image/png" },
+    ],
+    apple: [{ url: brandAppleIconPath, sizes: "180x180", type: "image/png" }],
+    shortcut: [brandFaviconPath],
   },
+  manifest: brandManifestPath,
   robots: {
     index: true,
     follow: true,
@@ -66,6 +84,7 @@ export default function RootLayout({
           >
             <Navbar />
             <main className="flex-1 flex flex-col">{children}</main>
+            <SiteFooter />
             <FloatingAiChat />
             <SpeedInsights />
           </ThemeProvider>

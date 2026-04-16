@@ -25,6 +25,30 @@ export default function sitemap(): MetadataRoute.Sitemap {
       priority: 0.8,
     },
     {
+      url: buildCanonicalUrl("/about"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.65,
+    },
+    {
+      url: buildCanonicalUrl("/contact"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.65,
+    },
+    {
+      url: buildCanonicalUrl("/privacy-policy"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.55,
+    },
+    {
+      url: buildCanonicalUrl("/terms-of-service"),
+      lastModified,
+      changeFrequency: "monthly",
+      priority: 0.55,
+    },
+    {
       url: buildCanonicalUrl("/alerts"),
       lastModified,
       changeFrequency: "weekly",
