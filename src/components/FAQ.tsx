@@ -1,4 +1,4 @@
-﻿'use client'
+'use client'
 
 import React, { useState } from 'react'
 import { Plus, Minus, HelpCircle } from 'lucide-react'
@@ -95,9 +95,6 @@ export default function FAQ() {
 
   return (
     <section className="py-20 md:py-32 relative overflow-hidden">
-      {/* Background Glows for the section */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/5 rounded-full blur-[160px] pointer-events-none opacity-20" />
-      
       <div className="dashboard-shell relative z-10">
         {/* HEADER */}
         <div className="mb-16 space-y-4 text-center animate-fade-up">

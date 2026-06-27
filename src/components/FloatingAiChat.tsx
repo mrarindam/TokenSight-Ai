@@ -62,13 +62,35 @@ export function FloatingAiChat() {
   const [suggestions, setSuggestions] = useState(INITIAL_SUGGESTIONS)
   const [messages, setMessages] = useState<ChatMessage[]>(() => getInitialMessages())
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [isPremium, setIsPremium] = useState<boolean | null>(null)
 
   useEffect(() => {
     if (!scrollRef.current) return
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight
   }, [messages, isThinking])
 
-  const canShow = ready && authenticated && pathname !== "/login"
+  useEffect(() => {
+    let active = true
+    if (ready && authenticated && pathname !== "/login") {
+      authFetch("/api/user/me")
+        .then((res) => res.json())
+        .then((data) => {
+          if (active) {
+            setIsPremium(data?.user?.is_premium || false)
+          }
+        })
+        .catch(() => {
+          if (active) {
+            setIsPremium(false)
+          }
+        })
+    }
+    return () => {
+      active = false
+    }
+  }, [ready, authenticated, authFetch, pathname])
+
+  const canShow = ready && authenticated && pathname !== "/login" && isPremium === true
 
   if (!canShow) {
     return null

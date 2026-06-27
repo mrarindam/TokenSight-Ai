@@ -5,7 +5,7 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { usePrivy } from "@privy-io/react-auth"
-import { Menu, X, Scan, Trophy, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, BookOpen, LogIn, BadgeInfo, MessageSquareText } from "lucide-react"
+import { Menu, X, Scan, Trophy, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, BookOpen, LogIn, BadgeInfo, MessageSquareText, Sparkles } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuthFetch } from "@/lib/useAuthFetch"
@@ -40,6 +40,7 @@ type NavbarUser = {
   wallet: string | null
   email: string | null
   twitter_handle: string | null
+  is_premium?: boolean
 }
 
 export function Navbar() {
@@ -140,16 +141,11 @@ export function Navbar() {
                 className="h-[34px] w-[34px] object-cover"
               />
             </div>
-            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.95)]" />
           </div>
           <div className="min-w-0">
             <span className="hidden text-lg font-bold tracking-tight text-foreground sm:inline-block">
               TokenSight <span className="text-primary">AI</span>
             </span>
-            <div className="hidden items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.28em] text-muted-foreground md:flex">
-              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_12px_rgba(74,222,128,0.95)]" />
-              Market Signals Live
-            </div>
           </div>
         </Link>
 
@@ -184,6 +180,21 @@ export function Navbar() {
 
         {/* Right side actions */}
         <div className="flex items-center gap-2 lg:gap-3">
+          {ready && authenticated && navUser && (
+            navUser.is_premium ? (
+              <div className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 border border-purple-500/20">
+                <Sparkles className="h-3.5 w-3.5 text-purple-400" /> PRO
+              </div>
+            ) : (
+              <Link
+                href="/pricing"
+                className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-black uppercase tracking-widest text-white bg-gradient-to-r from-primary to-purple-600 shadow-[0_10px_20px_-10px_rgba(147,51,234,0.4)] hover:scale-105 transition-all duration-200"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Upgrade
+              </Link>
+            )
+          )}
+
           <div ref={moreMenuRef} className="relative hidden lg:block">
             <button
               type="button"

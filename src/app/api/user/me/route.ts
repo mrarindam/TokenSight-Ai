@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { getCached, setCached } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -12,23 +13,32 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  const cacheKey = `user_profile:${authUser.id}`
+  const cachedUser = await getCached<unknown>(cacheKey)
+  if (cachedUser) {
+    return NextResponse.json({ user: cachedUser })
+  }
+
   const { data: dbUser } = await supabaseAdmin
     .from("users")
-    .select("id, username, display_name, avatar_url, wallet, email, twitter_handle")
+    .select("id, username, display_name, avatar_url, wallet, email, twitter_handle, is_premium")
     .eq("id", authUser.id)
     .maybeSingle()
 
   const resolvedUser = dbUser || authUser
 
-  return NextResponse.json({
-    user: {
-      id: resolvedUser.id,
-      username: resolvedUser.username || null,
-      display_name: resolvedUser.display_name || null,
-      avatar_url: resolvedUser.avatar_url || null,
-      wallet: resolvedUser.wallet || null,
-      email: resolvedUser.email || null,
-      twitter_handle: resolvedUser.twitter_handle || null,
-    },
-  })
+  const userResponse = {
+    id: resolvedUser.id,
+    username: resolvedUser.username || null,
+    display_name: resolvedUser.display_name || null,
+    avatar_url: resolvedUser.avatar_url || null,
+    wallet: resolvedUser.wallet || null,
+    email: resolvedUser.email || null,
+    twitter_handle: resolvedUser.twitter_handle || null,
+    is_premium: dbUser?.is_premium || false,
+  }
+
+  await setCached(cacheKey, userResponse, 300)
+
+  return NextResponse.json({ user: userResponse })
 }

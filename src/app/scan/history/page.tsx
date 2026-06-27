@@ -76,7 +76,7 @@ export default function ScanHistoryPage() {
                   <History className="h-3.5 w-3.5" />
                   History Terminal
                 </div>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-primary via-cyan-300 to-purple-400 bg-clip-text text-transparent">Scan History</h1>
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Scan History</h1>
                 <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to review your past scans and intelligence signals.</p>
               </div>
               <Link
@@ -96,10 +96,7 @@ export default function ScanHistoryPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] overflow-hidden">
-        <div className="absolute left-[4%] top-[-10%] h-80 w-80 rounded-full bg-primary/10 blur-[160px] opacity-75" />
-        <div className="absolute right-[7%] top-[5%] h-72 w-72 rounded-full bg-purple-500/10 blur-[150px] opacity-70" />
-      </div>
+      {/* Background glow removed */}
       <div className="absolute inset-0 terminal-grid-bg opacity-[0.16] pointer-events-none" />
       <div className="terminal-page-shell relative z-10 py-8 md:py-12 space-y-8">
         <section className="terminal-page-grid items-start">
@@ -108,8 +105,8 @@ export default function ScanHistoryPage() {
               <History className="h-3.5 w-3.5" />
               Historical Intelligence Feed
             </div>
-            <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
-              <span className="bg-gradient-to-r from-primary via-cyan-300 to-purple-400 bg-clip-text text-transparent animate-aurora">Scan History</span>
+            <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
+              Scan History
             </h1>
             <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Audit past token scans in a wider terminal surface with better readability, faster pagination control, and the same underlying history data flow.</p>
           </div>

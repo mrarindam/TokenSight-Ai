@@ -29,8 +29,6 @@ export function OfficialPageShell({
   return (
     <div className="relative overflow-hidden">
       <div className="absolute inset-0 hero-grid opacity-30" />
-      <div className="absolute left-[-10%] top-16 h-72 w-72 rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute bottom-0 right-[-8%] h-72 w-72 rounded-full bg-cyan-500/10 blur-3xl" />
 
       <div className="dashboard-shell relative py-12 md:py-16">
         <div className="grid gap-8 lg:grid-cols-[1.45fr_0.75fr]">

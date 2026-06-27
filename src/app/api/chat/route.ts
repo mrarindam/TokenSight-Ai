@@ -1174,6 +1174,25 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // Enforce Premium access control for AI features
+  const { data: dbUser } = await supabaseAdmin
+    .from("users")
+    .select("is_premium")
+    .eq("id", authUser.id)
+    .maybeSingle()
+
+  const isPremium = dbUser?.is_premium || false
+  if (!isPremium) {
+    return NextResponse.json({
+      reply: "🔒 **Sight AI Copilot** is a Premium feature. Upgrade to Premium to chat with the AI assistant, unlock advanced scan tools, and more.",
+      code: "PREMIUM_REQUIRED",
+      suggestions: ["Upgrade to Premium"],
+      links: [{ href: "/pricing", label: "Upgrade to Premium", external: false }],
+      results: [],
+      cards: []
+    })
+  }
+
   const body = await request.json().catch(() => null)
   const messages = sanitizeMessages(body?.messages)
   const currentPath = typeof body?.currentPath === "string" ? body.currentPath : null

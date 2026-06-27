@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, Suspense, useCallback } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { usePrivy } from "@privy-io/react-auth"
+import Link from "next/link"
 import Image from "next/image"
 import { getAnonScanCount, incrementAnonScanCount, isAnonLimitReached, getRemainingScans, SCAN_CONFIG } from "@/lib/anon-scans"
 import { useAuthFetch } from "@/lib/useAuthFetch"
@@ -351,12 +352,26 @@ function ScanPageContent() {
   const [anonCount, setAnonCount] = useState(0)
   const [remaining, setRemaining] = useState(SCAN_CONFIG.LIMIT)
   const [limitReached, setLimitReached] = useState(false)
+  const [isPremium, setIsPremium] = useState(false)
 
   useEffect(() => {
     setAnonCount(getAnonScanCount())
     setRemaining(getRemainingScans())
     setLimitReached(!isAuthenticated && isAnonLimitReached())
-  }, [isAuthenticated])
+
+    authFetch("/api/scan/limit")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data) {
+          setIsPremium(data.isPremium || false)
+          if (typeof data.remaining === "number") {
+            setRemaining(data.remaining)
+            setLimitReached(data.remaining <= 0 && !data.isPremium)
+          }
+        }
+      })
+      .catch((err) => console.error("Failed to load limit status from Redis:", err))
+  }, [isAuthenticated, authFetch])
 
   const handleScan = useCallback(async (targetAddress = address) => {
     if (!targetAddress || isScanning) return
@@ -385,14 +400,27 @@ function ScanPageContent() {
       })
 
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || "Failed to scan token")
-      if (data.code === 'LIMIT_REACHED') {
+      if (!res.ok) {
+        if (data?.code === 'LIMIT_REACHED') {
+          setLimitAlert(true)
+          setRemaining(0)
+          setLimitReached(true)
+          return
+        }
+        throw new Error(data.error || "Failed to scan token")
+      }
+      if (data?.code === 'LIMIT_REACHED') {
         setLimitAlert(true)
+        setRemaining(0)
+        setLimitReached(true)
         return
       }
 
       setResult(data)
-      if (!isAuthenticated) {
+      if (data && typeof data.remaining === "number") {
+        setRemaining(data.remaining)
+        setLimitReached(data.remaining <= 0 && !isPremium)
+      } else if (!isAuthenticated) {
         incrementAnonScanCount()
         setAnonCount(getAnonScanCount())
         setRemaining(getRemainingScans())
@@ -406,7 +434,7 @@ function ScanPageContent() {
       setIsScanning(false)
       setScanPhase("")
     }
-  }, [address, isScanning, limitReached, anonCount, isAuthenticated, router, authFetch])
+  }, [address, isScanning, limitReached, anonCount, isAuthenticated, router, authFetch, isPremium])
 
   const handleExampleSelect = useCallback((exampleAddress: string) => {
     setAddress(exampleAddress)
@@ -539,10 +567,7 @@ function ScanPageContent() {
   return (
     <div className="flex flex-col min-h-screen relative overflow-x-hidden w-full outline outline-0 outline-red-500/0">
       {/* BACKGROUND ACCENT WRAPPER TO PREVENT OVERFLOW */}
-      <div className="absolute inset-x-0 top-0 h-[420px] pointer-events-none overflow-hidden">
-        <div className="absolute left-[6%] top-[-8%] h-[24rem] w-[24rem] rounded-full bg-primary/10 blur-[150px] opacity-55" />
-        <div className="absolute right-[8%] top-[6%] h-[20rem] w-[20rem] rounded-full bg-cyan-500/10 blur-[140px] opacity-45" />
-      </div>
+      {/* Background glow removed */}
 
       <div className="relative z-10 w-full px-4 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-10 md:py-16 space-y-10">
         <div className="space-y-3 text-center animate-fade-up">
@@ -550,19 +575,19 @@ function ScanPageContent() {
             <Sparkles className="h-3 w-3" />
             Solana Token Scanner
           </div>
-          <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-foreground via-cyan-300 to-primary bg-clip-text text-transparent">
+          <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
             Scan Any Solana Token
           </h1>
           <p className="text-muted-foreground text-base leading-relaxed font-medium xl:text-lg">
             Paste a Solana contract address to check rug risk, liquidity depth, holder distribution, creator activity, and trading momentum in one report.
-            {!isAuthenticated && (
+            {!isPremium && (
               <span className={cn(
                 "block mt-3 text-xs font-black uppercase tracking-widest transition-all duration-500",
                 remaining <= SCAN_CONFIG.THRESHOLD_ANIMATE ? 'text-warning scale-110 animate-bounce' : 'text-primary/70'
               )}>
                 {remaining > 0 ? (
                   <span className="bg-muted/30 px-3 py-1 rounded-full border border-border/20">
-                    {remaining} FREE DAILY {remaining === 1 ? 'SCAN' : 'SCANS'} LEFT
+                    {remaining} {isAuthenticated ? 'FREE DAILY SCANS' : 'FREE DAILY SCANS'} LEFT
                   </span>
                 ) : (
                   <span className="bg-danger/10 text-danger border border-danger/30 px-3 py-1 rounded-full">
@@ -649,16 +674,33 @@ function ScanPageContent() {
                 <div className="h-12 w-12 rounded-full bg-danger/20 flex items-center justify-center text-danger mx-auto">
                   <Lock className="h-6 w-6" />
                 </div>
-                <h3 className="text-lg font-black tracking-tight text-foreground uppercase">Identity Required</h3>
-                <p className="text-sm text-muted-foreground font-medium">
-                  Log in now to unlock unlimited scanning, leaderboard access, and surveillance stats.
-                </p>
-                <Button
-                  onClick={() => router.push('/login')}
-                  className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest h-12 rounded-xl shadow-lg ring-1 ring-white/10"
-                >
-                  SIGN IN FOR UNLIMITED ACCESS
-                </Button>
+                {isAuthenticated ? (
+                  <>
+                    <h3 className="text-lg font-black tracking-tight text-foreground uppercase">Premium Upgrade Required</h3>
+                    <p className="text-sm text-muted-foreground font-medium">
+                      You have reached your daily limit of 10 free scans. Upgrade to Premium now to unlock 1,000+ daily scans, full Sight AI copilot access, unlimited portfolios, and real-time alerts.
+                    </p>
+                    <Button
+                      onClick={() => router.push('/pricing')}
+                      className="w-full bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 text-white font-black uppercase tracking-widest h-12 rounded-xl shadow-lg ring-1 ring-white/10"
+                    >
+                      UPGRADE TO PREMIUM
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <h3 className="text-lg font-black tracking-tight text-foreground uppercase">Identity Required</h3>
+                    <p className="text-sm text-muted-foreground font-medium">
+                      Log in now to unlock daily scans, leaderboard access, and surveillance stats.
+                    </p>
+                    <Button
+                      onClick={() => router.push('/login')}
+                      className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-black uppercase tracking-widest h-12 rounded-xl shadow-lg ring-1 ring-white/10"
+                    >
+                      SIGN IN FOR UNLIMITED ACCESS
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
           )}
@@ -1387,10 +1429,36 @@ function ScanPageContent() {
                   </div>
                   <span className="text-[9px] text-muted-foreground/40 font-mono tracking-tighter">DYOR.</span>
                 </div>
-                <div className="p-5">
-                  <p className="text-[13px] leading-relaxed text-foreground/90 font-medium whitespace-pre-wrap">
-                    {renderHighlightedSummary(result.explanation)}
-                  </p>
+                <div className="p-5 relative">
+                  {!isPremium ? (
+                    <div className="space-y-4">
+                      {/* Blurred backdrop preview */}
+                      <p className="text-[13px] leading-relaxed text-foreground/30 font-medium select-none blur-[4px]">
+                        This token shows robust momentum on-chain with liquidity pools locked and no active threat signatures detected. Dev holds less than 2% of total supply...
+                      </p>
+                      <div className="absolute inset-0 bg-background/40 backdrop-blur-[2px] flex flex-col items-center justify-center p-4 text-center space-y-3 z-10">
+                        <div className="p-2 rounded-full bg-purple-500/20 text-purple-400">
+                          <Lock className="h-5 w-5" />
+                        </div>
+                        <div>
+                          <h4 className="text-xs font-black uppercase tracking-wider text-foreground">Premium AI Summary</h4>
+                          <p className="text-[10px] text-muted-foreground mt-1 max-w-[85%] mx-auto font-medium">
+                            Unlock real-time AI reasoning, risk reports, and threat level descriptions.
+                          </p>
+                        </div>
+                        <Link
+                          href="/pricing"
+                          className="px-4 py-2 text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-primary to-purple-600 text-white rounded-xl shadow-md hover:scale-105 transition-all"
+                        >
+                          Unlock Summary
+                        </Link>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[13px] leading-relaxed text-foreground/90 font-medium whitespace-pre-wrap">
+                      {renderHighlightedSummary(result.explanation)}
+                    </p>
+                  )}
                 </div>
               </div>
 

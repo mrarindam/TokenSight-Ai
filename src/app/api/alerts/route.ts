@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { sendTelegramMessage } from "@/lib/telegram"
 import type { CreateAlertPayload } from "@/types/app"
+import { getCached, setCached, deleteCached } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -33,6 +34,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  const cacheKey = `user_alerts:${authUser.id}`
+  const cachedData = await getCached<unknown[]>(cacheKey)
+  if (cachedData) {
+    return NextResponse.json({ alerts: cachedData })
+  }
+
   const { data, error } = await supabaseAdmin
     .from("price_alerts")
     .select("*")
@@ -42,6 +49,10 @@ export async function GET(request: Request) {
   if (error) {
     console.error("[api/alerts] GET", error)
     return NextResponse.json({ error: "Failed to load alerts" }, { status: 500 })
+  }
+
+  if (data) {
+    await setCached(cacheKey, data, 300)
   }
 
   return NextResponse.json({ alerts: data || [] })
@@ -70,6 +81,29 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid comparison type" }, { status: 400 })
   }
 
+  const { data: dbUser } = await supabaseAdmin
+    .from("users")
+    .select("is_premium")
+    .eq("id", authUser.id)
+    .maybeSingle()
+
+  const isPremium = dbUser?.is_premium || false
+
+  if (!isPremium) {
+    const { count } = await supabaseAdmin
+      .from("price_alerts")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", authUser.id)
+      .eq("is_active", true)
+
+    if (count !== null && count >= 2) {
+      return NextResponse.json({
+        error: "Price alerts limit reached. Free tier is limited to 2 active alerts. Upgrade to Premium for unlimited real-time alerts.",
+        code: "ALERTS_LIMIT_REACHED"
+      }, { status: 403 })
+    }
+  }
+
   const { data, error } = await supabaseAdmin
     .from("price_alerts")
     .insert({
@@ -96,6 +130,9 @@ export async function POST(request: Request) {
       `✅ <b>Alert Created</b>\n\nYour alert for <b>${data.token_name || data.token_address}</b> has been created successfully.`
     )
   }
+
+  const cacheKey = `user_alerts:${authUser.id}`
+  await deleteCached(cacheKey)
 
   return NextResponse.json({ alert: data })
 }
@@ -139,6 +176,9 @@ export async function DELETE(request: Request) {
     authUser.id,
     `🗑️ <b>Alert Deleted</b>\n\nYour alert for <b>${alert.token_name || alert.token_address}</b> has been removed.`
   )
+
+  const cacheKey = `user_alerts:${authUser.id}`
+  await deleteCached(cacheKey)
 
   return NextResponse.json({ deleted: true })
 }

@@ -16,6 +16,10 @@ export async function DELETE(request: Request) {
     console.error("[api/portfolio] delete", error)
     return NextResponse.json({ error: "Failed to delete portfolio entry" }, { status: 500 })
   }
+  
+  const cacheKey = `user_portfolio:${authUser.id}`
+  await deleteCached(cacheKey)
+
   return NextResponse.json({ success: true })
 }
 import { NextResponse } from "next/server"
@@ -23,6 +27,7 @@ import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { isValidSolanaAddress } from "@/lib/utils"
 import type { CreatePortfolioPayload } from "@/types/app"
+import { getCached, setCached, deleteCached } from "@/lib/redis"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -31,6 +36,12 @@ export async function GET(request: Request) {
   const authUser = await getAuthUser(request)
   if (!authUser?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const cacheKey = `user_portfolio:${authUser.id}`
+  const cachedData = await getCached<unknown[]>(cacheKey)
+  if (cachedData) {
+    return NextResponse.json({ portfolio: cachedData })
   }
 
   const { data, error } = await supabaseAdmin
@@ -42,6 +53,10 @@ export async function GET(request: Request) {
   if (error) {
     console.error("[api/portfolio] GET", error)
     return NextResponse.json({ error: "Failed to load portfolio" }, { status: 500 })
+  }
+
+  if (data) {
+    await setCached(cacheKey, data, 300)
   }
 
   return NextResponse.json({ portfolio: data || [] })
@@ -80,6 +95,14 @@ export async function POST(request: Request) {
     notes: body.notes?.trim() || null,
   }
 
+  const { data: dbUser } = await supabaseAdmin
+    .from("users")
+    .select("is_premium")
+    .eq("id", authUser.id)
+    .maybeSingle()
+
+  const isPremium = dbUser?.is_premium || false
+
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("user_portfolios")
     .select("*")
@@ -93,6 +116,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Portfolio operation failed" }, { status: 500 })
   }
 
+  // Check limit only if inserting a new item
+  if (!existing && !isPremium) {
+    const { count } = await supabaseAdmin
+      .from("user_portfolios")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", authUser.id)
+      .eq("status", "HOLDING")
+
+    if (count !== null && count >= 2) {
+      return NextResponse.json({
+        error: "Portfolio limit reached. Free tier is limited to 2 tokens. Upgrade to Premium for unlimited portfolio additions.",
+        code: "PORTFOLIO_LIMIT_REACHED"
+      }, { status: 403 })
+    }
+  }
+
   if (existing) {
     const { data, error } = await supabaseAdmin
       .from("user_portfolios")
@@ -103,6 +142,9 @@ export async function POST(request: Request) {
       console.error("[api/portfolio] update", error)
       return NextResponse.json({ error: "Failed to update portfolio" }, { status: 500 })
     }
+
+    const cacheKey = `user_portfolio:${authUser.id}`
+    await deleteCached(cacheKey)
 
     return NextResponse.json({ portfolio: data?.[0] || null })
   }
@@ -117,6 +159,9 @@ export async function POST(request: Request) {
     console.error("[api/portfolio] insert", error)
     return NextResponse.json({ error: "Failed to add portfolio entry" }, { status: 500 })
   }
+
+  const cacheKey = `user_portfolio:${authUser.id}`
+  await deleteCached(cacheKey)
 
   return NextResponse.json({ portfolio: data })
 }

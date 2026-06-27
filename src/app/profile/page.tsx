@@ -130,10 +130,7 @@ export default async function ProfilePage() {
 
   return (
     <div className="terminal-page-shell flex-1 relative overflow-x-hidden py-12 md:py-16 space-y-10">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] overflow-hidden">
-        <div className="absolute left-[4%] top-[-14%] h-80 w-80 rounded-full bg-primary/10 blur-[170px] opacity-80" />
-        <div className="absolute right-[8%] top-[6%] h-72 w-72 rounded-full bg-orange-500/10 blur-[150px] opacity-75" />
-      </div>
+      {/* Background glow removed */}
       <div className="absolute inset-0 terminal-grid-bg opacity-[0.14] pointer-events-none" />
 
       <section className="terminal-page-grid relative z-10 items-start animate-fade-up">
@@ -142,8 +139,8 @@ export default async function ProfilePage() {
             <User className="h-3.5 w-3.5" />
             Analyst Identity Matrix
           </div>
-          <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
-            <span className="bg-gradient-to-r from-primary via-cyan-300 to-orange-300 bg-clip-text text-transparent animate-aurora">Profile Terminal</span>
+          <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
+            Profile Terminal
           </h1>
           <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Review your scan performance, league status, streak quality, and account identity from a wider intelligence dashboard shell.</p>
         </div>

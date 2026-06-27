@@ -175,7 +175,7 @@ export default function AlertsPage() {
                   <Bell className="h-3.5 w-3.5" />
                   Alert Terminal
                 </div>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-amber-300 via-foreground to-primary bg-clip-text text-transparent">Solana Token Price Alerts</h1>
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Solana Token Price Alerts</h1>
                 <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Track Solana token price moves and signal changes with real-time alerts.</p>
               </div>
               <Link
@@ -195,10 +195,7 @@ export default function AlertsPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[32rem] overflow-hidden">
-        <div className="absolute left-[5%] top-[-12%] h-80 w-80 rounded-full bg-amber-500/10 blur-[160px] opacity-80" />
-        <div className="absolute right-[8%] top-[6%] h-72 w-72 rounded-full bg-primary/10 blur-[150px] opacity-70" />
-      </div>
+      {/* Background glow removed */}
       <div className="absolute inset-0 terminal-grid-bg opacity-[0.18] pointer-events-none" />
       <div className="terminal-page-shell relative z-10 py-8 md:py-12 space-y-8 md:space-y-10">
         <section className="terminal-page-grid items-start">
@@ -207,8 +204,8 @@ export default function AlertsPage() {
               <Bell className="h-3.5 w-3.5" />
               Alert Command Center
             </div>
-            <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
-              <span className="bg-gradient-to-r from-amber-300 via-foreground to-primary bg-clip-text text-transparent animate-aurora">Solana Token Price Alerts</span>
+            <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
+              Solana Token Price Alerts
             </h1>
             <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Track Solana token price moves and signal changes with real-time alerts and quick control access.</p>
           </div>
@@ -338,7 +335,19 @@ export default function AlertsPage() {
             </div>
           </div>
 
-          {error && <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400 backdrop-blur-sm animate-in fade-in slide-in-from-top-1">{error}</div>}
+          {error && (
+            <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400 backdrop-blur-sm animate-in fade-in slide-in-from-top-1 flex items-center justify-between gap-3">
+              <span>{error}</span>
+              {error.includes("limit") && (
+                <Link
+                  href="/pricing"
+                  className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-primary to-purple-600 text-white rounded-lg hover:scale-105 transition-transform"
+                >
+                  Upgrade
+                </Link>
+              )}
+            </div>
+          )}
           {successMessage && <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-400 backdrop-blur-sm animate-in fade-in slide-in-from-top-1">{successMessage}</div>}
 
           <button

@@ -3,6 +3,7 @@ import { getAuthUser } from "@/lib/auth"
 import { createClient } from "@supabase/supabase-js"
 import nacl from "tweetnacl"
 import bs58 from "bs58"
+import { deleteCached } from "@/lib/redis"
 
 const SIGN_MESSAGE_PREFIX = "TokenSight AI Wallet Verification\n\nSign this message to link your wallet.\nThis does not cost any SOL.\n\nNonce: "
 
@@ -65,6 +66,9 @@ export async function POST(req: Request) {
 
     if (updateError) throw updateError
 
+    const cacheKey = `user_profile:${authUser.id}`
+    await deleteCached(cacheKey)
+
     return NextResponse.json({ success: true, wallet: address })
   } catch (err) {
     const error = err as Error
@@ -102,6 +106,9 @@ export async function DELETE(request: Request) {
       .eq("id", authUser.id)
 
     if (error) throw error
+
+    const cacheKey = `user_profile:${authUser.id}`
+    await deleteCached(cacheKey)
 
     return NextResponse.json({ success: true })
   } catch (err) {

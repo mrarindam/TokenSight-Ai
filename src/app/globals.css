@@ -77,11 +77,7 @@
   }
   .dark body,
   body:where(.dark *) {
-    background-image:
-      linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-      linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
-    background-size: 40px 40px;
-    background-attachment: fixed;
+    background-image: none;
   }
   ::selection {
     @apply bg-primary/20 text-primary;
@@ -139,10 +135,7 @@
     background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 28%);
   }
   .terminal-grid-bg {
-    background-image:
-      linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
-    background-size: 72px 72px;
+    background-image: none;
   }
   .terminal-page-shell {
     @apply relative w-full px-4 sm:px-6 lg:px-10 xl:px-16 2xl:px-24;
@@ -200,10 +193,7 @@
 
 /* Light mode: hero grid uses subtle dark lines */
 :root .hero-grid {
-  background-image:
-    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
-  background-size: 60px 60px;
+  background-image: none;
 }
 
 /* ===== Premium Card Hover ===== */
@@ -359,20 +349,13 @@
 
 /* ===== Hero Grid Pattern ===== */
 .hero-grid {
-  background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
-  background-size: 60px 60px;
+  background-image: none;
 }
 .dark .hero-grid {
-  background-image:
-    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-image: none;
 }
 .hero-grid:not(.dark .hero-grid) {
-  background-image:
-    linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px);
+  background-image: none;
 }
 
 /* ===== Risk Badge Styles ===== */
@@ -613,15 +596,11 @@
 
 @layer utilities {
   .text-3d {
-    text-shadow:
-      0 1px 0 rgba(255,255,255,0.04),
-      0 2px 4px rgba(0,0,0,0.4),
-      0 4px 8px rgba(0,0,0,0.2),
-      0 8px 16px rgba(0,0,0,0.1);
+    text-shadow: none;
   }
 
   .text-3d-hero {
-    animation: hero-text-3d 6s ease-in-out infinite;
+    animation: none;
   }
 
   .neon-cyan { --neon-color: rgba(34,211,238,0.6); animation: neon-breathe 3s ease-in-out infinite; }

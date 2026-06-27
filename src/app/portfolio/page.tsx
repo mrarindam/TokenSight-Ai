@@ -167,10 +167,7 @@ export default function PortfolioPage() {
   if (!authenticated) {
     return (
       <div className="relative min-h-screen w-full overflow-x-hidden">
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-[30rem] overflow-hidden">
-          <div className="absolute left-[8%] top-[-12%] h-72 w-72 rounded-full bg-emerald-500/10 blur-[150px]" />
-          <div className="absolute right-[10%] top-[8%] h-72 w-72 rounded-full bg-cyan-500/10 blur-[140px]" />
-        </div>
+        {/* Background glow removed */}
         <div className="terminal-page-shell relative z-10 py-24">
           <div className="terminal-page-grid">
             <div className="col-span-12 xl:col-span-6 xl:col-start-4 text-center space-y-6 terminal-page-frame p-8 md:p-10">
@@ -182,7 +179,7 @@ export default function PortfolioPage() {
                   <Wallet className="h-3.5 w-3.5" />
                   Portfolio Terminal
                 </div>
-                <h1 className="text-3xl md:text-5xl font-black tracking-tight text-3d text-3d-hero bg-gradient-to-r from-emerald-300 via-foreground to-cyan-300 bg-clip-text text-transparent">Portfolio</h1>
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Portfolio</h1>
                 <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to track holdings, entry price, and ROI for scanned tokens.</p>
               </div>
               <Link
@@ -202,10 +199,7 @@ export default function PortfolioPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-x-hidden">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[34rem] overflow-hidden">
-        <div className="absolute left-[4%] top-[-12%] h-80 w-80 rounded-full bg-emerald-500/10 blur-[160px] opacity-80" />
-        <div className="absolute right-[7%] top-[6%] h-72 w-72 rounded-full bg-cyan-500/10 blur-[150px] opacity-75" />
-      </div>
+      {/* Background glow removed */}
       <div className="absolute inset-0 terminal-grid-bg opacity-[0.16] pointer-events-none" />
       <div className="terminal-page-shell relative z-10 py-8 md:py-12 space-y-8 md:space-y-10">
       <section className="terminal-page-grid items-start">
@@ -214,8 +208,8 @@ export default function PortfolioPage() {
             <Wallet className="h-3.5 w-3.5" />
             Holdings Command Deck
           </div>
-          <h1 className="text-4xl md:text-5xl xl:text-6xl font-black tracking-tight text-3d text-3d-hero">
-            <span className="bg-gradient-to-r from-emerald-300 via-foreground to-cyan-300 bg-clip-text text-transparent animate-aurora">Portfolio Terminal</span>
+          <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
+            Portfolio Terminal
           </h1>
           <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Track positions, compare live market value versus entry, and manage your conviction levels through a wider multi-panel trading layout.</p>
         </div>
@@ -273,7 +267,6 @@ export default function PortfolioPage() {
         {/* ===== Portfolio Form ===== */}
         <section className="col-span-12 xl:col-span-4 relative group rounded-2xl border border-border/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 xl:sticky xl:top-28 overflow-hidden transition-all duration-500 hover:border-primary/20 hover-lift-premium">
           <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-primary/50 to-transparent opacity-50 group-hover:opacity-100 transition-opacity" />
-          <div className="absolute -top-16 -right-16 w-32 h-32 bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/20 transition-colors" />
 
           <div className="relative z-10 flex items-center gap-3 mb-2">
             <div className="p-2 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 border border-primary/20 shadow-lg shadow-primary/10">
@@ -365,7 +358,19 @@ export default function PortfolioPage() {
               />
             </label>
 
-            {error && <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400 backdrop-blur-sm">{error}</div>}
+            {error && (
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-400 backdrop-blur-sm flex items-center justify-between gap-3">
+                <span>{error}</span>
+                {error.includes("limit") && (
+                  <Link
+                    href="/pricing"
+                    className="shrink-0 px-3 py-1.5 text-[10px] font-black uppercase tracking-widest bg-gradient-to-r from-primary to-purple-600 text-white rounded-lg hover:scale-105 transition-transform"
+                  >
+                    Upgrade
+                  </Link>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
               <button

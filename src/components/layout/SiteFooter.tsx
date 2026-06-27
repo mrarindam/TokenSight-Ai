@@ -30,8 +30,6 @@ export function SiteFooter() {
   return (
     <div className="relative border-t border-white/[0.05]">
       <div className="absolute inset-0 hero-grid opacity-20" />
-      <div className="absolute left-[8%] top-16 h-56 w-56 rounded-full bg-primary/10 blur-3xl" />
-      <div className="absolute bottom-0 right-[10%] h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
 
       <div className="dashboard-shell relative py-14 md:py-20">
         <footer className="dashboard-surface px-6 py-8 md:px-10 md:py-10">

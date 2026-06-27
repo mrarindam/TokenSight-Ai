@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { updateStreak } from "@/lib/streak-logic"
 import { addLowRiskToken } from "@/lib/lowRiskStore"
 import type { Token } from "@/types/token"
+import { getCached, setCached, scanRateLimiter, userScanRateLimiter } from "@/lib/redis"
 
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
 const BAGS_API_KEY = process.env.BAGS_API_KEY?.trim() || ""
@@ -164,22 +165,72 @@ export async function POST(request: Request) {
 
     const authUser = await getAuthUser(request)
 
+    let remainingScans: number | null = null
+
     // --- STEP 1: AUTHENTICATION & LIMIT CHECK ---
     if (!authUser) {
-      // If not logged in, enforce the 5-scan daily limit
-      if (anonCount !== undefined && anonCount >= 5) {
-        return NextResponse.json({
-          error: "Identity verification required. You have reached your daily limit of 5 free scans. Please log in to continue.",
-          code: "LIMIT_REACHED"
-        }, { status: 401 })
+      if (scanRateLimiter) {
+        const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || 
+                   request.headers.get("x-real-ip") || 
+                   "127.0.0.1"
+        const { success, remaining } = await scanRateLimiter.limit(ip)
+        remainingScans = remaining
+        if (!success) {
+          return NextResponse.json({
+            error: "Identity verification required. You have reached your daily limit of 5 free scans. Please log in to continue.",
+            code: "LIMIT_REACHED",
+            remaining: 0
+          }, { status: 429 })
+        }
+      } else {
+        // Fallback for environments without Redis configuration
+        if (anonCount !== undefined && anonCount >= 5) {
+          return NextResponse.json({
+            error: "Identity verification required. You have reached your daily limit of 5 free scans. Please log in to continue.",
+            code: "LIMIT_REACHED"
+          }, { status: 401 })
+        }
       }
       if (process.env.NODE_ENV === "development") {
         console.log(`[api/scan] Anonymous daily scan attempt. Local count: ${anonCount || 0}`)
+      }
+    } else {
+      // Authenticated User: Check if Premium
+      const { data: dbUser } = await supabaseAdmin
+        .from("users")
+        .select("is_premium")
+        .eq("id", authUser.id)
+        .maybeSingle()
+
+      const isPremium = dbUser?.is_premium || false
+      if (!isPremium) {
+        if (userScanRateLimiter) {
+          const { success, remaining } = await userScanRateLimiter.limit(authUser.id)
+          remainingScans = remaining
+          if (!success) {
+            return NextResponse.json({
+              error: "Daily scan limit reached. Please upgrade to Premium for unlimited scans and advanced Sight AI metrics.",
+              code: "LIMIT_REACHED",
+              remaining: 0
+            }, { status: 403 })
+          }
+        }
+      } else {
+        remainingScans = 99999 // virtually unlimited for premium
       }
     }
 
     if (!address || address.length < 10) {
       return NextResponse.json({ error: "Invalid token address format" }, { status: 400 })
+    }
+
+    const cacheKey = `token_scan:${address}`
+    const cachedScan = await getCached<unknown>(cacheKey)
+    if (cachedScan) {
+      if (process.env.NODE_ENV === "development") {
+        console.log(`[SCAN_ENGINE] Cache HIT for: ${address}`)
+      }
+      return NextResponse.json(cachedScan)
     }
 
     // --- STEP 2: FETCH DATA ---
@@ -780,6 +831,7 @@ export async function POST(request: Request) {
       signals: signals,
       explanation: explanation,
       contractName: bagsToken?.name || dexTokenName || bagsToken?.symbol || "Unknown Token",
+      remaining: remainingScans,
       meta: {
         liquidity: liquidity,
         volume: volume,
@@ -932,6 +984,8 @@ export async function POST(request: Request) {
           }
         })
     }
+
+    await setCached(cacheKey, scanResponse, 30)
 
     return NextResponse.json(scanResponse)
 

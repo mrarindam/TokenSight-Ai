@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import { getAuthUser } from "@/lib/auth"
+import { deleteCached } from "@/lib/redis"
 
 export async function POST(req: Request) {
   const authUser = await getAuthUser(req)
@@ -73,6 +74,9 @@ export async function POST(req: Request) {
       .eq('id', authUser.id)
 
     if (dbError) throw dbError
+
+    const cacheKey = `user_profile:${authUser.id}`
+    await deleteCached(cacheKey)
 
     return NextResponse.json({ success: true })
   } catch (err: unknown) {

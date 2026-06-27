@@ -40,8 +40,8 @@ export default async function LeaderboardPage() {
               <Trophy className="h-3.5 w-3.5" />
               Live Intelligence Ranking
             </div>
-            <h1 className="text-4xl md:text-6xl xl:text-7xl font-black tracking-tight text-3d text-3d-hero">
-              <span className="bg-gradient-to-r from-yellow-300 via-foreground to-primary bg-clip-text text-transparent animate-aurora">GLOBAL LEADERBOARD</span>
+            <h1 className="text-4xl md:text-6xl xl:text-7xl font-extrabold tracking-tight text-foreground">
+              GLOBAL LEADERBOARD
             </h1>
             <p className="max-w-3xl text-foreground/90 text-sm md:text-base font-black leading-relaxed">
               Top analysts are ranked purely by total scan activity across the network.
