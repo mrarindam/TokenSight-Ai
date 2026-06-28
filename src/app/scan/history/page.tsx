@@ -72,10 +72,6 @@ export default function ScanHistoryPage() {
                 <Shield className="h-8 w-8" />
               </div>
               <div className="space-y-3">
-                <div className="terminal-page-kicker">
-                  <History className="h-3.5 w-3.5" />
-                  History Terminal
-                </div>
                 <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Scan History</h1>
                 <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to review your past scans and intelligence signals.</p>
               </div>

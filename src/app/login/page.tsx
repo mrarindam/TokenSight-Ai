@@ -65,9 +65,9 @@ export default function LoginPage() {
   }, [authenticated, handleLogin, ready])
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-[#020408] px-6">
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-6 text-center">
-        <div className="overflow-hidden rounded-[1.4rem] border border-white/10 bg-[#020408] p-1.5 shadow-[0_18px_45px_-24px_rgba(59,130,246,0.45)]">
+        <div className="overflow-hidden rounded-[1.4rem] border border-border bg-card p-1.5 shadow-[0_18px_45px_-24px_rgba(59,130,246,0.35)]">
           <Image
             src={brandIconPath}
             alt="TokenSight AI"
@@ -77,21 +77,21 @@ export default function LoginPage() {
           />
         </div>
         <div className="space-y-2">
-          <h1 className="text-2xl font-black tracking-tight text-white">Opening sign-in</h1>
-          <p className="text-sm text-white/50">
+          <h1 className="text-2xl font-black tracking-tight text-foreground">Opening sign-in</h1>
+          <p className="text-sm text-muted-foreground">
             The Privy login modal should appear automatically.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 text-sm text-white/70">
-          <Loader2 className="h-4 w-4 animate-spin" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin text-primary" />
           {isSubmitting ? "Launching Privy..." : statusText}
         </div>
 
         <button
           onClick={handleLogin}
           disabled={!ready || isSubmitting}
-          className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl border border-border bg-muted/50 px-5 py-3 text-sm font-semibold text-foreground transition hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
         >
           Open Privy login
         </button>

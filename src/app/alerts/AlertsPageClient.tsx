@@ -171,10 +171,6 @@ export default function AlertsPage() {
                 <Bell className="h-8 w-8" />
               </div>
               <div className="space-y-3">
-                <div className="terminal-page-kicker">
-                  <Bell className="h-3.5 w-3.5" />
-                  Alert Terminal
-                </div>
                 <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Solana Token Price Alerts</h1>
                 <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Track Solana token price moves and signal changes with real-time alerts.</p>
               </div>

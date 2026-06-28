@@ -175,10 +175,6 @@ export default function PortfolioPage() {
                 <Wallet className="h-8 w-8" />
               </div>
               <div className="space-y-3">
-                <div className="terminal-page-kicker">
-                  <Wallet className="h-3.5 w-3.5" />
-                  Portfolio Terminal
-                </div>
                 <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Portfolio</h1>
                 <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to track holdings, entry price, and ROI for scanned tokens.</p>
               </div>
@@ -209,7 +205,7 @@ export default function PortfolioPage() {
             Holdings Command Deck
           </div>
           <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
-            Portfolio Terminal
+            Portfolio
           </h1>
           <p className="max-w-3xl text-sm md:text-base text-muted-foreground leading-relaxed">Track positions, compare live market value versus entry, and manage your conviction levels through a wider multi-panel trading layout.</p>
         </div>

@@ -1,13 +1,11 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
 import { ThemeProvider } from "@/components/theme-provider";
 import { Providers } from "@/components/Providers";
-import { Navbar } from "@/components/layout/Navbar";
-import { SiteFooter } from "@/components/layout/SiteFooter";
+import { AppLayoutWrapper } from "@/components/layout/AppLayoutWrapper";
 import {
   brandAppleIconPath,
   brandFavicon16Path,
@@ -22,10 +20,6 @@ import {
   siteUrl,
 } from "@/lib/seo";
 
-const FloatingAiChat = dynamic(
-  () => import("@/components/FloatingAiChat").then((module) => module.FloatingAiChat),
-  { ssr: false }
-);
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -79,20 +73,19 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={cn("min-h-screen flex flex-col antialiased overflow-x-hidden overflow-y-auto w-full max-w-full relative")}>
-        <Providers>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="dark"
-            enableSystem
-            disableTransitionOnChange
-          >
-            <Navbar />
-            <main className="flex-1 flex flex-col">{children}</main>
-            <SiteFooter />
-            <FloatingAiChat />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <Providers>
+            <AppLayoutWrapper>
+              {children}
+            </AppLayoutWrapper>
             <SpeedInsights />
-          </ThemeProvider>
-        </Providers>
+          </Providers>
+        </ThemeProvider>
       </body>
     </html>
   );

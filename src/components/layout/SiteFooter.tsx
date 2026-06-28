@@ -28,60 +28,58 @@ export function SiteFooter() {
   const year = new Date().getFullYear();
 
   return (
-    <div className="relative border-t border-white/[0.05]">
-      <div className="absolute inset-0 hero-grid opacity-20" />
+    <div className="relative border-t border-border mt-auto w-full">
+      <div className="absolute inset-0 hero-grid opacity-10 pointer-events-none" />
 
-      <div className="dashboard-shell relative py-14 md:py-20">
-        <footer className="dashboard-surface px-6 py-8 md:px-10 md:py-10">
-          <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
-            <div className="max-w-sm">
-              <Link href="/" className="inline-flex items-center gap-3">
-                <div className="relative rounded-2xl border border-primary/20 bg-card/70 p-2 shadow-[0_12px_30px_-18px_rgba(59,130,246,0.55)]">
-                  <div className="overflow-hidden rounded-[0.95rem] bg-[#020408] ring-1 ring-white/6">
-                    <Image src={brandIconPath} alt="TokenSight AI logo" width={36} height={36} className="h-9 w-9 object-cover" />
-                  </div>
-                  <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.95)]" />
+      <footer className="w-full px-4 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-12 md:py-16">
+        <div className="grid gap-10 lg:grid-cols-[1.2fr_0.8fr_0.8fr_0.8fr]">
+          <div className="max-w-sm">
+            <Link href="/" className="inline-flex items-center gap-3">
+              <div className="relative rounded-2xl border border-primary/20 bg-card/70 p-2 shadow-[0_12px_30px_-18px_rgba(59,130,246,0.55)]">
+                <div className="overflow-hidden rounded-[0.95rem] bg-[#020408] ring-1 ring-white/6">
+                  <Image src={brandIconPath} alt="TokenSight AI logo" width={36} height={36} className="h-9 w-9 object-cover" />
                 </div>
-                <div>
-                  <p className="text-lg font-black tracking-tight text-foreground">
-                    TokenSight <span className="text-primary">AI</span>
-                  </p>
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/55">
-                    Solana Intelligence Platform
-                  </p>
-                </div>
-              </Link>
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.95)]" />
+              </div>
+              <div>
+                <p className="text-lg font-black tracking-tight text-foreground">
+                  TokenSight <span className="text-primary">AI</span>
+                </p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-muted-foreground/55">
+                  Solana Intelligence Platform
+                </p>
+              </div>
+            </Link>
 
-              <p className="mt-5 text-sm leading-7 text-muted-foreground/80">
-                TokenSight AI helps traders evaluate Solana tokens with liquidity analysis, holder insights, live risk signals, alerts, and portfolio tools in one place.
-              </p>
-            </div>
-
-            <FooterColumn title="Platform" links={platformLinks} />
-            <FooterColumn title="Company" links={companyLinks} />
-            <FooterColumn title="Legal" links={legalLinks} />
+            <p className="mt-5 text-sm leading-7 text-muted-foreground/80">
+              TokenSight AI helps traders evaluate Solana tokens with liquidity analysis, holder insights, live risk signals, alerts and portfolio tools in one place.
+            </p>
           </div>
 
-          <div className="mt-8 flex flex-col gap-4 border-t border-white/[0.08] pt-6 text-sm text-muted-foreground/70 md:flex-row md:items-center md:justify-between">
-            <p>&copy; {year} TokenSight AI. Built for faster Solana token research.</p>
-            <div className="flex flex-wrap gap-4">
-              <Link href="/about" className="inline-flex items-center gap-2 transition-colors hover:text-foreground">
-                <FileText className="h-4 w-4 text-primary" />
-                About
-              </Link>
-              <Link href="/contact" className="transition-colors hover:text-foreground">
-                Contact
-              </Link>
-              <Link href="/privacy-policy" className="transition-colors hover:text-foreground">
-                Privacy Policy
-              </Link>
-              <Link href="/terms-of-service" className="transition-colors hover:text-foreground">
-                Terms of Service
-              </Link>
-            </div>
+          <FooterColumn title="Platform" links={platformLinks} />
+          <FooterColumn title="Company" links={companyLinks} />
+          <FooterColumn title="Legal" links={legalLinks} />
+        </div>
+
+        <div className="mt-8 flex flex-col gap-4 border-t border-border/40 pt-6 text-sm text-muted-foreground/70 md:flex-row md:items-center md:justify-between">
+          <p>&copy; {year} TokenSight AI. Built for faster Solana token research.</p>
+          <div className="flex flex-wrap gap-4">
+            <Link href="/about" className="inline-flex items-center gap-2 transition-colors hover:text-foreground">
+              <FileText className="h-4 w-4 text-primary" />
+              About
+            </Link>
+            <Link href="/contact" className="transition-colors hover:text-foreground">
+              Contact
+            </Link>
+            <Link href="/privacy-policy" className="transition-colors hover:text-foreground">
+              Privacy Policy
+            </Link>
+            <Link href="/terms-of-service" className="transition-colors hover:text-foreground">
+              Terms of Service
+            </Link>
           </div>
-        </footer>
-      </div>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -101,6 +99,8 @@ function FooterColumn({
           <Link
             key={link.href}
             href={link.href}
+            target={link.href === "/docs" ? "_blank" : undefined}
+            rel={link.href === "/docs" ? "noopener noreferrer" : undefined}
             className="flex items-center justify-between rounded-2xl border border-transparent px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:border-primary/15 hover:bg-primary/10 hover:text-foreground"
           >
             {link.label}

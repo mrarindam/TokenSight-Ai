@@ -4,10 +4,11 @@ import { useState, useEffect, useCallback } from "react"
 import { usePrivy } from "@privy-io/react-auth"
 import { useAuthFetch } from "@/lib/useAuthFetch"
 import { cn } from "@/lib/utils"
-import { Send, CheckCircle, AlertCircle } from "lucide-react"
+import { Send, CheckCircle, AlertCircle, LogIn } from "lucide-react"
+import Link from "next/link"
 
 export default function TelegramSettingsPage() {
-  const { authenticated } = usePrivy()
+  const { ready, authenticated } = usePrivy()
   const authFetch = useAuthFetch()
   const [telegramId, setTelegramId] = useState<string | null>(null)
   const [inputValue, setInputValue] = useState("")
@@ -65,11 +66,38 @@ export default function TelegramSettingsPage() {
     }
   }
 
+  if (!ready) {
+    return <div className="terminal-page-shell py-16 text-center">Loading Telegram settings...</div>
+  }
+
   if (!authenticated) {
     return (
-      <div className="container py-16 text-center">
-        <h1 className="text-3xl font-bold">Telegram Alerts</h1>
-        <p className="mt-4 text-sm text-muted-foreground">Log in to receive alerts via Telegram.</p>
+      <div className="relative min-h-screen w-full overflow-x-hidden">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] overflow-hidden">
+          <div className="absolute left-[8%] top-[-10%] h-72 w-72 rounded-full bg-blue-500/10 blur-[140px]" />
+          <div className="absolute right-[10%] top-[8%] h-64 w-64 rounded-full bg-primary/10 blur-[130px]" />
+        </div>
+        <div className="terminal-page-shell relative z-10 py-24">
+          <div className="terminal-page-grid">
+            <div className="col-span-12 xl:col-span-6 xl:col-start-4 text-center space-y-6 terminal-page-frame p-8 md:p-10">
+              <div className="terminal-icon-tile mx-auto text-blue-400 border-blue-500/20 bg-blue-500/10 shadow-[0_0_30px_rgba(59,130,246,0.16)]">
+                <Send className="h-8 w-8" />
+              </div>
+              <div className="space-y-3">
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Telegram Alerts</h1>
+                <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to receive alerts via Telegram.</p>
+              </div>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in to continue
+              </Link>
+              <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
+            </div>
+          </div>
+        </div>
       </div>
     )
   }

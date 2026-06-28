@@ -571,10 +571,6 @@ function ScanPageContent() {
 
       <div className="relative z-10 w-full px-4 sm:px-6 lg:px-10 xl:px-16 2xl:px-24 py-10 md:py-16 space-y-10">
         <div className="space-y-3 text-center animate-fade-up">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-primary/20 bg-primary/5 text-primary text-xs font-medium">
-            <Sparkles className="h-3 w-3" />
-            Solana Token Scanner
-          </div>
           <h1 className="text-4xl md:text-5xl xl:text-6xl font-extrabold tracking-tight text-foreground">
             Scan Any Solana Token
           </h1>

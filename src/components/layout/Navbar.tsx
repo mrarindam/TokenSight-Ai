@@ -159,6 +159,8 @@ export function Navbar() {
               <Link
                 key={item.href}
                 href={item.href}
+                target={item.href === "/docs" ? "_blank" : undefined}
+                rel={item.href === "/docs" ? "noopener noreferrer" : undefined}
                 className={cn(
                   "rounded-full px-4 py-2.5 text-sm font-medium transition-all duration-200",
                   isActive
@@ -214,10 +216,6 @@ export function Navbar() {
 
             {moreOpen ? (
               <div className="absolute right-0 top-[calc(100%+0.75rem)] w-64 rounded-[1.25rem] border border-border/40 bg-card/90 p-2 shadow-[0_20px_50px_-20px_rgba(0,0,0,0.5)] backdrop-blur-2xl">
-                <div className="mb-2 rounded-2xl border border-border/30 bg-background/40 px-3 py-2">
-                  <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Command Center</p>
-                  <p className="mt-1 text-xs text-foreground">Access supporting tools and account controls.</p>
-                </div>
                 {SECONDARY_NAV_ITEMS.map((item) => {
                   const isActive = pathname === item.href
                   return (
@@ -296,13 +294,6 @@ export function Navbar() {
         <div className="border-t border-border/40 bg-background/95 backdrop-blur-2xl animate-fade-in lg:hidden">
           <nav className="dashboard-shell py-4">
             <div className="rounded-[1.5rem] border border-border/40 bg-card/65 p-2 shadow-[0_12px_40px_-24px_rgba(0,0,0,0.5)]">
-            <div className="mb-2 flex items-center justify-between rounded-[1.2rem] border border-primary/15 bg-background/50 px-4 py-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-muted-foreground">Signal Status</p>
-                <p className="mt-1 text-sm font-medium text-foreground">AI monitoring is active</p>
-              </div>
-              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(74,222,128,0.95)]" />
-            </div>
             {MOBILE_NAV_ITEMS.map((item) => {
               const isActive = pathname === item.href
               const isScanItem = item.href === "/scan"
@@ -311,6 +302,8 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   onClick={() => setMobileOpen(false)}
+                  target={item.href === "/docs" ? "_blank" : undefined}
+                  rel={item.href === "/docs" ? "noopener noreferrer" : undefined}
                   className={cn(
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition-all duration-200",
                     isActive
@@ -325,6 +318,25 @@ export function Navbar() {
                 </Link>
               )
             })}
+            {ready && authenticated && navUser && (
+              <div className="mt-2 px-1">
+                {navUser.is_premium ? (
+                  <div className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/20">
+                    <Sparkles className="h-5 w-5 text-purple-400" />
+                    <span>PRO Member</span>
+                  </div>
+                ) : (
+                  <Link
+                    href="/pricing"
+                    onClick={() => setMobileOpen(false)}
+                    className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-black uppercase tracking-widest text-white bg-gradient-to-r from-primary to-purple-600 shadow-[0_10px_20px_-10px_rgba(147,51,234,0.4)]"
+                  >
+                    <Sparkles className="h-5 w-5" />
+                    <span>Upgrade to Premium</span>
+                  </Link>
+                )}
+              </div>
+            )}
             <Link
               href={profileHref}
               onClick={() => setMobileOpen(false)}

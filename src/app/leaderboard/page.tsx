@@ -1,5 +1,5 @@
-import { Trophy, TrendingUp } from "lucide-react"
-import { redirect } from "next/navigation"
+import { Trophy, TrendingUp, LogIn } from "lucide-react"
+import Link from "next/link"
 import Leaderboard from "@/components/Leaderboard"
 import { getAuthUserFromCookies } from "@/lib/auth"
 
@@ -12,7 +12,35 @@ export default async function LeaderboardPage() {
   const authUser = await getAuthUserFromCookies()
 
   if (!authUser) {
-    redirect("/login")
+    return (
+      <div className="relative min-h-screen w-full overflow-x-hidden bg-background">
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] overflow-hidden">
+          <div className="absolute left-[8%] top-[-10%] h-72 w-72 rounded-full bg-warning/10 blur-[140px]" />
+          <div className="absolute right-[10%] top-[8%] h-64 w-64 rounded-full bg-primary/10 blur-[130px]" />
+        </div>
+        <div className="terminal-page-shell relative z-10 py-24">
+          <div className="terminal-page-grid">
+            <div className="col-span-12 xl:col-span-6 xl:col-start-4 text-center space-y-6 terminal-page-frame p-8 md:p-10">
+              <div className="terminal-icon-tile mx-auto text-warning border-warning/20 bg-warning/10 shadow-[0_0_30px_rgba(245,158,11,0.16)]">
+                <Trophy className="h-8 w-8" />
+              </div>
+              <div className="space-y-3">
+                <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-foreground">Global Leaderboard</h1>
+                <p className="text-sm md:text-base text-muted-foreground leading-relaxed">Log in to view the global leaderboard and see where you stand among top Solana token analysts.</p>
+              </div>
+              <Link
+                href="/login"
+                className="inline-flex items-center gap-2.5 px-8 py-3.5 rounded-xl bg-primary text-primary-foreground font-bold text-sm tracking-wide shadow-lg shadow-primary/25 hover:shadow-primary/40 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+              >
+                <LogIn className="h-4 w-4" />
+                Sign in to continue
+              </Link>
+              <p className="text-[11px] text-muted-foreground/40">Google, GitHub, or Solana wallet</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -1,19 +1,34 @@
 import { DOC_PAGES } from "@/lib/docs-data"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { buildPageMetadata } from "@/lib/seo"
 
-export async function generateMetadata() {
-  const page = DOC_PAGES["about"]
+interface PageProps {
+  params: {
+    slug: string
+  }
+}
+
+export async function generateMetadata({ params }: PageProps) {
+  const page = DOC_PAGES[params.slug]
   if (!page) return {}
   return buildPageMetadata({
     title: `${page.title} | TokenSight AI Documentation`,
     description: page.description,
-    path: `/docs`
+    path: `/docs/${params.slug}`
   })
 }
 
-export default async function DocsPage() {
-  const slug = "about"
+export function generateStaticParams() {
+  return Object.keys(DOC_PAGES).map((slug) => ({ slug }))
+}
+
+export default async function DocsDetailPage({ params }: PageProps) {
+  const { slug } = params
+  
+  if (slug === "about") {
+    redirect("/docs")
+  }
+
   const page = DOC_PAGES[slug]
 
   if (!page) {
@@ -69,3 +84,4 @@ export default async function DocsPage() {
     </div>
   )
 }
+export const dynamicParams = false
