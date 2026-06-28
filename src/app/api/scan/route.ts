@@ -6,7 +6,8 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { updateStreak } from "@/lib/streak-logic"
 import { addLowRiskToken } from "@/lib/lowRiskStore"
 import type { Token } from "@/types/token"
-import { getCached, setCached, scanRateLimiter, userScanRateLimiter } from "@/lib/redis"
+import { getCached, setCached } from "@/lib/redis"
+import { checkAndIncrementIpLimit } from "@/lib/ip-limit"
 
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
 const BAGS_API_KEY = process.env.BAGS_API_KEY?.trim() || ""
@@ -157,7 +158,7 @@ type JupiterTokenSnapshot = {
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const { address: rawAddress, anonCount } = body
+    const { address: rawAddress } = body
 
     // --- LEVEL 7: INPUT SANITIZATION & NORMALIZATION ---
     // Strip everything except alphanumeric, trim, and normalize case to prevent address mismatches
@@ -168,31 +169,23 @@ export async function POST(request: Request) {
     let remainingScans: number | null = null
 
     // --- STEP 1: AUTHENTICATION & LIMIT CHECK ---
+    const ip = request.headers.get("cf-connecting-ip") || 
+               request.headers.get("x-forwarded-for")?.split(",")[0].trim() || 
+               request.headers.get("x-real-ip") || 
+               "127.0.0.1"
+
     if (!authUser) {
-      if (scanRateLimiter) {
-        const ip = request.headers.get("x-forwarded-for")?.split(",")[0].trim() || 
-                   request.headers.get("x-real-ip") || 
-                   "127.0.0.1"
-        const { success, remaining } = await scanRateLimiter.limit(ip)
-        remainingScans = remaining
-        if (!success) {
-          return NextResponse.json({
-            error: "Identity verification required. You have reached your daily limit of 5 free scans. Please log in to continue.",
-            code: "LIMIT_REACHED",
-            remaining: 0
-          }, { status: 429 })
-        }
-      } else {
-        // Fallback for environments without Redis configuration
-        if (anonCount !== undefined && anonCount >= 5) {
-          return NextResponse.json({
-            error: "Identity verification required. You have reached your daily limit of 5 free scans. Please log in to continue.",
-            code: "LIMIT_REACHED"
-          }, { status: 401 })
-        }
+      const { success, remaining } = await checkAndIncrementIpLimit(ip, 5)
+      remainingScans = remaining
+      if (!success) {
+        return NextResponse.json({
+          error: "Identity verification required. You have reached your daily limit of 5 free scans. Please log in to continue.",
+          code: "LIMIT_REACHED",
+          remaining: 0
+        }, { status: 429 })
       }
       if (process.env.NODE_ENV === "development") {
-        console.log(`[api/scan] Anonymous daily scan attempt. Local count: ${anonCount || 0}`)
+        console.log(`[api/scan] Anonymous daily scan attempt. IP: ${ip}, remaining: ${remaining}`)
       }
     } else {
       // Authenticated User: Check if Premium
@@ -204,16 +197,14 @@ export async function POST(request: Request) {
 
       const isPremium = dbUser?.is_premium || false
       if (!isPremium) {
-        if (userScanRateLimiter) {
-          const { success, remaining } = await userScanRateLimiter.limit(authUser.id)
-          remainingScans = remaining
-          if (!success) {
-            return NextResponse.json({
-              error: "Daily scan limit reached. Please upgrade to Premium for unlimited scans and advanced Sight AI metrics.",
-              code: "LIMIT_REACHED",
-              remaining: 0
-            }, { status: 403 })
-          }
+        const { success, remaining } = await checkAndIncrementIpLimit(ip, 10)
+        remainingScans = remaining
+        if (!success) {
+          return NextResponse.json({
+            error: "Daily scan limit reached. Please upgrade to Premium for unlimited scans and advanced Sight AI metrics.",
+            code: "LIMIT_REACHED",
+            remaining: 0
+          }, { status: 403 })
         }
       } else {
         remainingScans = 99999 // virtually unlimited for premium
