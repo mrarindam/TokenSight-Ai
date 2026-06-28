@@ -13,6 +13,8 @@ const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
 const BAGS_API_KEY = process.env.BAGS_API_KEY?.trim() || ""
 const HELIUS_API_KEY = process.env.HELIUS_API_KEY?.trim() || ""
 const JUPITER_API_KEY = process.env.JUPITER_API_KEY?.trim() || ""
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY?.trim() || ""
+const DEFAULT_MODEL = process.env.OPENROUTER_MODEL || "openai/gpt-4o-mini"
 
 type DexPair = {
   chainId?: string
@@ -665,6 +667,8 @@ export async function POST(request: Request) {
       metadataCompleteness,
       status,
       hasLiveMarket: !!highestPair,
+      mintAuthorityDisabled,
+      freezeAuthorityDisabled,
     })
 
     if (qualityScore >= 75) {
@@ -723,8 +727,10 @@ export async function POST(request: Request) {
       signals.push("Token metadata remains mutable and can still be changed by the authority")
     }
 
-    // Intelligence Score = average of the 4 core parameters
-    const score = clampScore(Math.round((qualityScore + momentumScore + confidenceScore + riskCap) / 4))
+    // Calculate Base Score as weighted average of Quality (60%) and Momentum (40%)
+    const baseScore = Math.round((qualityScore * 0.60) + (momentumScore * 0.40))
+    // Capped strictly by the Risk Cap ceiling
+    const score = clampScore(Math.min(baseScore, riskCap))
 
     let confidence = "LOW"
     if (confidenceScore >= 75) confidence = "HIGH"
@@ -735,7 +741,8 @@ export async function POST(request: Request) {
     else if (score >= 60) label = "GOOD ENTRY"
     else if (score < 40) label = "WEAK ENTRY"
 
-    const explanation = buildReadableSummary({
+    let explanation = ""
+    const summaryInput = {
       label,
       confidence,
       score,
@@ -756,7 +763,14 @@ export async function POST(request: Request) {
       volumeLiquidityRatio,
       isPartialHolderData: isPartialHolderData,
       tokenAddress: address,
-    })
+    }
+
+    try {
+      explanation = await generateAISummary(summaryInput)
+    } catch (err) {
+      console.warn("[api/scan] AI summary generation failed, falling back to static summary:", err)
+      explanation = buildReadableSummary(summaryInput)
+    }
 
     // --- OPPORTUNITY SIGNAL CAPTURE (High-Fidelity Metadata Filter) ---
     if (score >= 65 && liquidity !== null && liquidity > 1000 && volume !== null && volume > 1000) {
@@ -969,6 +983,7 @@ export async function POST(request: Request) {
                   price: dexPrice,
                   topHolderPct,
                   whaleWarning,
+                  explanation,
                 }),
               })
             })
@@ -1136,9 +1151,20 @@ function getRiskCap(input: {
   metadataCompleteness: number
   status: string
   hasLiveMarket: boolean
+  mintAuthorityDisabled: boolean | null
+  freezeAuthorityDisabled: boolean | null
 }) {
   let cap = 100
   const reasons: string[] = []
+
+  if (input.mintAuthorityDisabled === false) {
+    cap = Math.min(cap, 15)
+    reasons.push("mint authority is enabled (infinite supply mint risk)")
+  }
+  if (input.freezeAuthorityDisabled === false) {
+    cap = Math.min(cap, 10)
+    reasons.push("freeze authority is enabled (honeypot freeze risk)")
+  }
 
   if (!input.hasLiveMarket && input.status !== "graduated") {
     cap = Math.min(cap, 55)
@@ -1370,9 +1396,118 @@ function buildReadableSummary(input: {
     lines.push(`Note: Holder data is approximate (>1,000 holders). Helius API cannot fully snapshot large holder sets. For accurate holder data, visit https://birdeye.so/token/${input.tokenAddress}?chain=solana`)
   }
 
-  lines.push(`Intelligence Score ${input.score}/100 = avg of Quality (${input.qualityScore}) + Momentum (${input.momentumScore}) + Confidence (${input.confidenceScore}) + Risk Cap (${input.riskCap}). DYOR.`)
+  lines.push(`Intelligence Score ${input.score}/100 = Quality (${input.qualityScore}) & Momentum (${input.momentumScore}) capped by Risk Cap (${input.riskCap}). DYOR.`)
 
   return lines.join("\n")
+}
+
+async function generateAISummary(input: {
+  label: string
+  confidence: string
+  score: number
+  qualityScore: number
+  momentumScore: number
+  confidenceScore: number
+  riskCap: number
+  riskCapReasons: string[]
+  liquidity: number | null
+  volume: number | null
+  holders: number | null
+  topHolderPct: number | null
+  holderBreakdown: Array<{ rank: number; pct: number }>
+  creator_tokens: number | null
+  ageHours: number | null
+  status: string
+  metadataCompleteness: number
+  volumeLiquidityRatio: number | null
+  isPartialHolderData?: boolean
+  tokenAddress?: string
+}): Promise<string> {
+  if (!OPENROUTER_API_KEY) {
+    throw new Error("No OpenRouter API key configured")
+  }
+
+  const liquidityStr = input.liquidity !== null ? `$${input.liquidity.toLocaleString()}` : "N/A"
+  const volumeStr = input.volume !== null ? `$${input.volume.toLocaleString()}` : "N/A"
+  const topHolderStr = input.topHolderPct !== null ? `${input.topHolderPct}%` : "N/A"
+  const ageStr = input.ageHours !== null ? `${input.ageHours} hours` : "N/A"
+  const riskCapReasonsStr = input.riskCapReasons && input.riskCapReasons.length > 0 ? input.riskCapReasons.join(", ") : "None"
+
+  const prompt = `
+Analyze the following Solana token scan data and generate a high-quality, professional, production-level intelligence summary and risk report.
+
+Token Scan Metrics:
+- Overall Score: ${input.score}/100
+- Setup Label: ${input.label}
+- Data Confidence: ${input.confidence} (Score: ${input.confidenceScore}/100)
+- Quality Score: ${input.qualityScore}/100
+- Momentum Score: ${input.momentumScore}/100
+- Risk Cap Score: ${input.riskCap}/100
+- Risk Cap Flag/Reasons: ${riskCapReasonsStr}
+- Liquidity: ${liquidityStr}
+- 24h Volume: ${volumeStr}
+- Volume-to-Liquidity Ratio: ${input.volumeLiquidityRatio !== null ? input.volumeLiquidityRatio : "N/A"}
+- Holders count: ${input.holders !== null ? input.holders.toLocaleString() : "N/A"}
+- Top 10 Holders Control: ${topHolderStr}
+- Creator's Previous Token Count: ${input.creator_tokens !== null ? input.creator_tokens : "N/A"}
+- Token Age: ${ageStr}
+- Status: ${input.status}
+- Metadata Completeness: ${input.metadataCompleteness}/4
+
+Required Output Format & Style:
+Write exactly 4 concise, analytical paragraphs separated by double newlines.
+Do not use markdown bolding (e.g. **text**), lists, hashes (e.g. #), or bullet characters. Just write normal paragraphs.
+Ensure the following keywords are used where appropriate to fit the frontend highlighting system (e.g., write "strong" if liquidity or metrics are high, "healthy" for a good holder spread, "moderate" or "weak" for lighter volume, and "suspicious", "unusual", "critical" or "extreme" for risk flags):
+- Positive: strong, solid, healthy, favorable, stable, accumulation
+- Neutral: moderate, developing, early, monitoring
+- Warning: weak, low, limited, uncertainty
+- Risk: suspicious, unusual, extreme, critical
+
+The structure must follow:
+Line 1: Overall Verdict. A direct sentence explaining if the token is a high-conviction opportunity, a cautious entry, or highly speculative/unsafe based on the score and setup label.
+Line 2: On-chain Health. A summary of liquidity depth (strong/moderate/weak), volume-to-liquidity ratio health, and trading activity.
+Line 3: Security & Risk Exposure. A detailed description of developer history, top wallet concentration, and any specific warning signals like mutable metadata or high creator launches (use words like suspicious/critical/unusual if risks are detected).
+Line 4: Investment Viability (Can I buy?). A final professional recommendation detailing under what conditions (e.g. accumulation, waiting for graduation, or staying away entirely) this token should be approached. Keep the tone objective and analytical.
+
+Keep the total response under 180 words. Do not prefix lines with "Line 1:", "Line 2:", etc. Just write the paragraphs directly.
+  `
+
+  const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": process.env.APP_URL || "http://localhost:3000",
+      "X-OpenRouter-Title": "TokenSight AI Scanner",
+    },
+    body: JSON.stringify({
+      model: DEFAULT_MODEL,
+      temperature: 0.25,
+      max_tokens: 450,
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert crypto intelligence analyst specializing in on-chain token scanner risk audits."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ]
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error("OpenRouter API error: " + response.statusText)
+  }
+
+  const data = await response.json()
+  const content = data?.choices?.[0]?.message?.content?.trim()
+  if (!content) {
+    throw new Error("Empty response from OpenRouter")
+  }
+
+  return content
 }
 
 function roundPctFromBigInt(numerator: bigint, denominator: bigint): number {

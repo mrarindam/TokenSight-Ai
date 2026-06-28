@@ -130,6 +130,7 @@ export async function POST(request: Request) {
             price: scanData.meta?.price ?? null,
             topHolderPct: scanData.meta?.topHolderPct ?? null,
             whaleWarning: scanData.meta?.whaleWarning ?? false,
+            explanation: scanData.explanation,
           }),
         })
       } catch (err) {

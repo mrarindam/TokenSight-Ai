@@ -149,6 +149,7 @@ export function formatScanMessage(data: {
   price: number | null
   topHolderPct: number | null
   whaleWarning: boolean
+  explanation?: string
 }): string {
   const scoreEmoji = data.score >= 80 ? "🟢" : data.score >= 60 ? "🟡" : data.score >= 35 ? "🟠" : "🔴"
   const whaleIcon = data.whaleWarning ? "🐋 " : ""
@@ -160,6 +161,9 @@ export function formatScanMessage(data: {
   const whaleStr = data.topHolderPct !== null ? `${data.topHolderPct}%` : "N/A"
 
   const topSignals = data.signals.slice(0, 4).map(s => `  • ${s}`).join("\n")
+  const summaryBlock = data.explanation
+    ? `\n🧠 <b>AI Summary & Risk Report:</b>\n<i>${data.explanation}</i>\n`
+    : ""
 
   return `
 ${scoreEmoji} <b>TokenSight Scan Result</b>
@@ -169,7 +173,7 @@ ${scoreEmoji} <b>TokenSight Scan Result</b>
 
 📊 <b>Score:</b> ${data.score}/100 — ${data.label}
 🎯 <b>Confidence:</b> ${data.confidence}
-
+${summaryBlock}
 💰 <b>Price:</b> ${priceStr}
 💧 <b>Liquidity:</b> ${liqStr}
 📈 <b>Volume 24h:</b> ${volStr}
