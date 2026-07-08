@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server"
 import { createHmac } from "crypto"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { deleteCached } from "@/lib/redis"
+
+export const dynamic = "force-dynamic"
 
 export async function POST(request: Request) {
   try {

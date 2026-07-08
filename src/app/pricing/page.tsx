@@ -6,7 +6,6 @@ import { usePrivy } from "@privy-io/react-auth"
 import { useAuthFetch } from "@/lib/useAuthFetch"
 import { Check, Sparkles, Loader2, ArrowLeft, Lock, X, Coins } from "lucide-react"
 import Link from "next/link"
-import { cn } from "@/lib/utils"
 
 export default function PricingPage() {
   const { ready, authenticated, login } = usePrivy()
@@ -43,7 +42,7 @@ export default function PricingPage() {
   useEffect(() => {
     if (!oxapayTrackId || checkoutStep !== "processing") return
 
-    let intervalId = setInterval(async () => {
+    const intervalId = setInterval(async () => {
       try {
         const res = await authFetch(`/api/billing/oxapay/status?trackId=${oxapayTrackId}`)
         if (res.ok) {
@@ -280,7 +279,7 @@ export default function PricingPage() {
                   <div className="space-y-1">
                     <p className="text-sm font-bold text-foreground">Global Crypto Checkout</p>
                     <p className="text-xs text-muted-foreground max-w-[80%] mx-auto font-medium">
-                      You will be redirected to OxaPay's secure checkout page to complete the transfer in your chosen cryptocurrency.
+                      You will be redirected to OxaPay&apos;s secure checkout page to complete the transfer in your chosen cryptocurrency.
                     </p>
                   </div>
                   <div className="p-3 bg-muted/10 rounded-xl text-[10px] font-bold text-muted-foreground">
@@ -322,7 +321,7 @@ export default function PricingPage() {
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:underline"
                       >
-                        Didn't open? Click here to pay <span className="text-[10px]">↗</span>
+                        Didn&apos;t open? Click here to pay <span className="text-[10px]">↗</span>
                       </a>
                     </div>
                   )}

@@ -3,6 +3,8 @@ import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { deleteCached } from "@/lib/redis"
 
+export const dynamic = "force-dynamic"
+
 export async function GET(request: Request) {
   try {
     const authUser = await getAuthUser(request)
