@@ -185,7 +185,7 @@ export function Navbar() {
           {ready && authenticated && navUser && (
             navUser.is_premium ? (
               <div className="hidden sm:inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[10px] font-black uppercase tracking-widest text-purple-400 bg-purple-500/10 border border-purple-500/20">
-                <Sparkles className="h-3.5 w-3.5 text-purple-400" /> PRO
+                <Sparkles className="h-3.5 w-3.5 text-purple-400" /> PREMIUM
               </div>
             ) : (
               <Link
@@ -323,7 +323,7 @@ export function Navbar() {
                 {navUser.is_premium ? (
                   <div className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 border border-purple-500/20">
                     <Sparkles className="h-5 w-5 text-purple-400" />
-                    <span>PRO Member</span>
+                    <span>PREMIUM Member</span>
                   </div>
                 ) : (
                   <Link

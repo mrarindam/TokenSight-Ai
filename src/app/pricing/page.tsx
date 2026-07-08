@@ -1,13 +1,12 @@
 "use client"
 
-import { useEffect, useState, useCallback } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { usePrivy } from "@privy-io/react-auth"
 import { useAuthFetch } from "@/lib/useAuthFetch"
-import { Check, Sparkles, Loader2, ArrowLeft, Lock, X, Wallet, Coins } from "lucide-react"
+import { Check, Sparkles, Loader2, ArrowLeft, Lock, X, Coins } from "lucide-react"
 import Link from "next/link"
 import { cn } from "@/lib/utils"
-import { connectAndSign, signAndSendSwapTransaction, getPhantomProvider } from "@/lib/wallet"
 
 export default function PricingPage() {
   const { ready, authenticated, login } = usePrivy()
@@ -18,43 +17,14 @@ export default function PricingPage() {
   const [isPremium, setIsPremium] = useState(false)
   const [showCheckoutModal, setShowCheckoutModal] = useState(false)
   const [checkoutStep, setCheckoutStep] = useState<"select" | "processing" | "success">("select")
-  
-  // Solana Pay states
-  const [connectedWallet, setConnectedWallet] = useState<string | null>(null)
-  const [isConnectingWallet, setIsConnectingWallet] = useState(false)
-  const [selectedAsset, setSelectedAsset] = useState<"SOL" | "USDC" | "USDT" | null>(null)
-  
-  // SOL pricing estimate state (approx based on live price)
-  const [estimatedSolPrice, setEstimatedSolPrice] = useState<number>(0.04)
   const [errorMsg, setErrorMsg] = useState("")
 
-  const fetchSolConversion = useCallback(async () => {
-    try {
-      const jupRes = await fetch("https://api.jup.ag/price/v2?ids=So11111111111111111111111111111111111111112")
-      const jupData = await jupRes.json()
-      const liveSolPrice = Number(jupData?.data?.["So11111111111111111111111111111111111111112"]?.price || 140)
-      setEstimatedSolPrice(2.00 / liveSolPrice)
-    } catch (err) {
-      console.error("Failed to query SOL price conversion on-chain:", err)
-    }
-  }, [])
-
-  // Check active browser Phantom wallet session (like jup.ag)
-  const checkActiveWallet = useCallback(async () => {
-    const provider = getPhantomProvider()
-    if (provider && provider.isConnected && provider.publicKey) {
-      const activeAddress = provider.publicKey.toString()
-      setConnectedWallet(activeAddress)
-      void fetchSolConversion()
-      return activeAddress
-    }
-    return null
-  }, [fetchSolConversion])
+  // OxaPay states
+  const [oxapayLoading, setOxapayLoading] = useState(false)
+  const [oxapayPayLink, setOxapayPayLink] = useState<string | null>(null)
+  const [oxapayTrackId, setOxapayTrackId] = useState<string | null>(null)
 
   useEffect(() => {
-    // Initial check on load
-    void checkActiveWallet()
-
     if (ready && authenticated) {
       setIsLoadingUser(true)
       authFetch("/api/user/me")
@@ -63,19 +33,44 @@ export default function PricingPage() {
           if (data?.user?.is_premium) {
             setIsPremium(true)
           }
-          // Only fallback to DB wallet if no active provider is connected
-          if (data?.user?.wallet) {
-            const provider = getPhantomProvider()
-            if (!provider || !provider.isConnected) {
-              setConnectedWallet(data.user.wallet)
-              void fetchSolConversion()
-            }
-          }
         })
         .catch((err) => console.error("Error loading user profile status:", err))
         .finally(() => setIsLoadingUser(false))
     }
-  }, [ready, authenticated, authFetch, checkActiveWallet, fetchSolConversion, connectedWallet])
+  }, [ready, authenticated, authFetch])
+
+  // Polling OxaPay payment status
+  useEffect(() => {
+    if (!oxapayTrackId || checkoutStep !== "processing") return
+
+    let intervalId = setInterval(async () => {
+      try {
+        const res = await authFetch(`/api/billing/oxapay/status?trackId=${oxapayTrackId}`)
+        if (res.ok) {
+          const data = await res.json()
+          if (data.isPremium || data.status === "paid") {
+            clearInterval(intervalId)
+            setCheckoutStep("success")
+            setIsPremium(true)
+
+            setTimeout(() => {
+              setShowCheckoutModal(false)
+              router.push("/scan")
+              router.refresh()
+            }, 3500)
+          } else if (data.status === "expired" || data.status === "failed") {
+            clearInterval(intervalId)
+            setErrorMsg("Payment session expired or failed on OxaPay. Please try again.")
+            setCheckoutStep("select")
+          }
+        }
+      } catch (err) {
+        console.error("Error polling OxaPay status:", err)
+      }
+    }, 4500)
+
+    return () => clearInterval(intervalId)
+  }, [oxapayTrackId, checkoutStep, authFetch, router])
 
   const handleUpgradeClick = async () => {
     if (!authenticated) {
@@ -83,107 +78,40 @@ export default function PricingPage() {
       return
     }
     setCheckoutStep("select")
-    setSelectedAsset(null)
+    setOxapayPayLink(null)
+    setOxapayTrackId(null)
     setErrorMsg("")
     setShowCheckoutModal(true)
-
-    // Check active browser connection before loading checkout
-    const activeAddr = await checkActiveWallet()
-    if (!activeAddr && connectedWallet) {
-      void fetchSolConversion()
-    }
   }
 
-  const handleConnectWallet = async () => {
-    setIsConnectingWallet(true)
+  const handleOxapaySubmit = async () => {
+    setOxapayLoading(true)
     setErrorMsg("")
     try {
-      const result = await connectAndSign()
-      if (!result) {
-        throw new Error("Wallet connection was cancelled or Phantom is not installed")
-      }
-
-      // Link wallet to current profile (Gmail/Twitter/Github) using existing API logic
-      const res = await authFetch("/api/user/wallet", {
+      const res = await authFetch("/api/billing/oxapay/create-payment", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result)
+        headers: { "Content-Type": "application/json" }
       })
-
       const data = await res.json()
       if (!res.ok) {
-        throw new Error(data.error || "Failed to link wallet to your profile")
+        throw new Error(data.error || "Failed to initiate OxaPay checkout")
       }
 
-      setConnectedWallet(result.address)
-      await fetchSolConversion()
+      setOxapayPayLink(data.payLink)
+      setOxapayTrackId(data.trackId)
+      setCheckoutStep("processing")
+
+      if (data.payLink) {
+        window.open(data.payLink, "_blank", "noopener,noreferrer")
+      }
     } catch (err: unknown) {
       const error = err as Error
-      setErrorMsg(error.message || "Failed to connect wallet")
+      setErrorMsg(error.message || "Failed to start checkout.")
     } finally {
-      setIsConnectingWallet(false)
+      setOxapayLoading(false)
     }
   }
 
-  const handlePaymentSubmit = async () => {
-    if (!selectedAsset || !connectedWallet) {
-      setErrorMsg("Please select a payment asset and connect your wallet.")
-      return
-    }
-    setCheckoutStep("processing")
-    setErrorMsg("")
-
-    try {
-      // 1. Request transaction assembly from backend
-      const createRes = await authFetch("/api/billing/create-transaction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          paymentAsset: selectedAsset,
-          userAddress: connectedWallet
-        })
-      })
-
-      const createData = await createRes.json()
-      if (!createRes.ok) {
-        throw new Error(createData.error || "Failed to create checkout transaction")
-      }
-
-      // 2. Trigger transaction signing via connected wallet provider
-      const signature = await signAndSendSwapTransaction(createData.transaction)
-      if (!signature) {
-        throw new Error("Transaction cancelled or rejected by wallet")
-      }
-
-      // 3. Verify transaction on-chain on the backend
-      const verifyRes = await authFetch("/api/billing/verify-transaction", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          signature,
-          paymentAsset: selectedAsset
-        })
-      })
-
-      const verifyData = await verifyRes.json()
-      if (!verifyRes.ok) {
-        throw new Error(verifyData.error || "On-chain verification failed. Please check Solscan.")
-      }
-
-      setCheckoutStep("success")
-      setIsPremium(true)
-      
-      // Auto redirect to scan page on success
-      setTimeout(() => {
-        router.push("/scan")
-        router.refresh()
-      }, 2500)
-    } catch (err: unknown) {
-      const error = err as Error
-      setErrorMsg(error.message || "Transaction signature or verification failed.")
-      setCheckoutStep("select")
-    }
-  }
 
   return (
     <div className="relative min-h-screen bg-background text-foreground py-16 px-4 md:px-8">
@@ -205,7 +133,7 @@ export default function PricingPage() {
         <div className="text-center space-y-4 max-w-xl mx-auto">
           <p className="text-[10px] font-black uppercase tracking-[0.24em] text-primary/80">Premium Access Plans</p>
           <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-foreground uppercase">
-            Choose Your <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">Intelligence Tier</span>
+            Choose Your <span className="bg-gradient-to-r from-primary to-purple-500 bg-clip-text text-transparent">Tier</span>
           </h1>
           <p className="text-muted-foreground text-sm font-medium leading-relaxed">
             Upgrade your account to unlock professional Solana contract analysis features, custom alerts, and AI-powered copilot assistance.
@@ -239,7 +167,7 @@ export default function PricingPage() {
                     <span>{feat}</span>
                   </div>
                 ))}
-                
+
                 {[
                   "Sight AI chat copilot disabled",
                   "No priority node support",
@@ -269,7 +197,7 @@ export default function PricingPage() {
           <div className="relative rounded-2xl border border-purple-500/30 bg-card/60 backdrop-blur-xl p-6 md:p-8 flex flex-col justify-between shadow-[0_0_20px_-3px_rgba(147,51,234,0.15)]">
             {/* Glowing top line decorator */}
             <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-purple-500/40 to-transparent" />
-            
+
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div className="space-y-2">
@@ -335,97 +263,30 @@ export default function PricingPage() {
             </button>
 
             {checkoutStep === "select" && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-in fade-in duration-200">
                 <div className="space-y-2">
                   <h3 className="text-xl font-black uppercase tracking-tight text-foreground flex items-center gap-2">
-                    <Coins className="h-5 w-5 text-primary" /> Solana Pay
+                    <Coins className="h-5 w-5 text-purple-400" /> OxaPay Checkout
                   </h3>
                   <p className="text-xs text-muted-foreground leading-relaxed">
-                    Complete your checkout on Solana Mainnet. Funds are sent directly to recipient receiver address.
+                    Pay with Bitcoin, Ethereum, BNB, SOL, USDT, LTC, TRX or any other cryptocurrency. A payment invoice will be generated.
                   </p>
                 </div>
 
-                {/* Connection Box Check */}
-                {!connectedWallet ? (
-                  <div className="p-5 border border-dashed border-border/40 rounded-xl text-center space-y-4">
-                    <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto">
-                      <Wallet className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-foreground">Solana Wallet Required</p>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-[80%] mx-auto font-medium">
-                        Please connect your Solana wallet. It will automatically link to your current account.
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleConnectWallet}
-                      disabled={isConnectingWallet}
-                      className="w-full py-2.5 text-xs font-black uppercase tracking-widest bg-gradient-to-r from-purple-600 to-blue-600 text-white rounded-xl shadow-lg transition-all"
-                    >
-                      {isConnectingWallet ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Connect Phantom Wallet"}
-                    </button>
+                <div className="p-5 border border-dashed border-border/40 rounded-xl space-y-4 text-center">
+                  <div className="h-10 w-10 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center mx-auto">
+                    <Coins className="h-5 w-5" />
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    {/* Connected status */}
-                    <div className="flex items-center justify-between p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 text-xs font-semibold">
-                      <span className="text-muted-foreground font-medium">Connected Address:</span>
-                      <span className="font-mono text-emerald-400">{connectedWallet.slice(0, 5)}...{connectedWallet.slice(-5)}</span>
-                    </div>
-
-                    <div className="space-y-2.5">
-                      <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Select Payment Asset</p>
-                      
-                      <div className="grid grid-cols-3 gap-2.5">
-                        {/* SOL */}
-                        <button
-                          onClick={() => setSelectedAsset("SOL")}
-                          className={cn(
-                            "flex flex-col items-center justify-center p-3.5 border rounded-xl transition-all duration-200",
-                            selectedAsset === "SOL"
-                              ? "border-primary bg-primary/5 text-foreground font-black"
-                              : "border-border/30 hover:border-border/60 text-muted-foreground"
-                          )}
-                        >
-                          <span className="text-xs font-black">SOL</span>
-                          <span className="text-[9px] font-mono mt-1 text-muted-foreground/70">~{estimatedSolPrice.toFixed(4)}</span>
-                        </button>
-
-                        {/* USDC */}
-                        <button
-                          onClick={() => setSelectedAsset("USDC")}
-                          className={cn(
-                            "flex flex-col items-center justify-center p-3.5 border rounded-xl transition-all duration-200",
-                            selectedAsset === "USDC"
-                              ? "border-primary bg-primary/5 text-foreground font-black"
-                              : "border-border/30 hover:border-border/60 text-muted-foreground"
-                          )}
-                        >
-                          <span className="text-xs font-black">USDC</span>
-                          <span className="text-[9px] font-mono mt-1 text-muted-foreground/70">$2.00</span>
-                        </button>
-
-                        {/* USDT */}
-                        <button
-                          onClick={() => setSelectedAsset("USDT")}
-                          className={cn(
-                            "flex flex-col items-center justify-center p-3.5 border rounded-xl transition-all duration-200",
-                            selectedAsset === "USDT"
-                              ? "border-primary bg-primary/5 text-foreground font-black"
-                              : "border-border/30 hover:border-border/60 text-muted-foreground"
-                          )}
-                        >
-                          <span className="text-xs font-black">USDT</span>
-                          <span className="text-[9px] font-mono mt-1 text-muted-foreground/70">$2.00</span>
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="p-3 bg-muted/10 rounded-xl text-[10px] font-bold text-muted-foreground text-center">
-                      <span>Plan Duration: 30 Days (1 Month)</span>
-                    </div>
+                  <div className="space-y-1">
+                    <p className="text-sm font-bold text-foreground">Global Crypto Checkout</p>
+                    <p className="text-xs text-muted-foreground max-w-[80%] mx-auto font-medium">
+                      You will be redirected to OxaPay's secure checkout page to complete the transfer in your chosen cryptocurrency.
+                    </p>
                   </div>
-                )}
+                  <div className="p-3 bg-muted/10 rounded-xl text-[10px] font-bold text-muted-foreground">
+                    <span>Plan Duration: 30 Days (1 Month) — $2.00 USD</span>
+                  </div>
+                </div>
 
                 {errorMsg && (
                   <p className="text-xs text-danger font-semibold bg-danger/10 border border-danger/20 p-2.5 rounded-lg text-center">
@@ -434,11 +295,11 @@ export default function PricingPage() {
                 )}
 
                 <button
-                  onClick={handlePaymentSubmit}
-                  disabled={!selectedAsset || !connectedWallet}
-                  className="w-full py-3.5 text-xs font-black uppercase tracking-widest bg-primary disabled:opacity-40 disabled:cursor-not-allowed text-primary-foreground rounded-xl shadow-lg transition-all duration-200"
+                  onClick={handleOxapaySubmit}
+                  disabled={oxapayLoading}
+                  className="w-full py-3.5 text-xs font-black uppercase tracking-widest bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-600/90 hover:to-indigo-600/90 text-white rounded-xl shadow-lg shadow-purple-600/10 transition-all duration-200"
                 >
-                  Confirm &amp; Sign Pay Transaction
+                  {oxapayLoading ? <Loader2 className="h-4 w-4 animate-spin mx-auto" /> : "Confirm & Generate Invoice"}
                 </button>
               </div>
             )}
@@ -447,23 +308,40 @@ export default function PricingPage() {
               <div className="py-8 flex flex-col items-center justify-center space-y-4 text-center">
                 <Loader2 className="h-10 w-10 text-primary animate-spin" />
                 <div className="space-y-2">
-                  <h4 className="text-md font-black uppercase tracking-wider text-foreground">Verifying On-Chain Pay...</h4>
+                  <h4 className="text-md font-black uppercase tracking-wider text-foreground">
+                    Awaiting Crypto Payment...
+                  </h4>
                   <p className="text-xs text-muted-foreground max-w-[80%] mx-auto font-medium">
-                    Waiting for block confirmations. We are verifying the on-chain transfer to the receiver address.
+                    We opened the checkout page in a new tab. Please complete your transfer there. This page will update automatically once verified.
                   </p>
+                  {oxapayPayLink && (
+                    <div className="pt-4">
+                      <a
+                        href={oxapayPayLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:underline"
+                      >
+                        Didn't open? Click here to pay <span className="text-[10px]">↗</span>
+                      </a>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
 
             {checkoutStep === "success" && (
-              <div className="py-8 flex flex-col items-center justify-center space-y-4 text-center animate-in zoom-in-95 duration-500">
-                <div className="h-14 w-14 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30">
-                  <Check className="h-8 w-8" />
+              <div className="py-8 flex flex-col items-center justify-center space-y-5 text-center animate-in zoom-in-95 duration-500">
+                <div className="h-16 w-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center border border-emerald-500/30 shadow-[0_0_20px_rgba(16,185,129,0.3)]">
+                  <Check className="h-9 w-9 animate-bounce" />
                 </div>
-                <div className="space-y-2">
-                  <h4 className="text-md font-black uppercase tracking-wider text-foreground">Premium Active!</h4>
-                  <p className="text-xs text-muted-foreground max-w-[80%] mx-auto font-medium">
-                    Your Solana transaction verified successfully! Setting up your premium profile tier. Redirecting...
+                <div className="space-y-3">
+                  <h4 className="text-xl font-black uppercase tracking-wider text-emerald-400">Payment Successful! 🎉</h4>
+                  <p className="text-sm font-bold text-foreground max-w-[90%] mx-auto leading-relaxed">
+                    Welcome to the Premium Family! 💜
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-[85%] mx-auto leading-relaxed">
+                    Thank you so much for your support. Your account is now fully upgraded with all premium access tier features active. Redirecting to your scan page...
                   </p>
                 </div>
               </div>
