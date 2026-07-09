@@ -170,13 +170,17 @@ export async function POST(request: Request) {
 
     let remainingScans: number | null = null
 
+    // Check if request is authenticated as coming from our Discord bot
+    const botHeader = request.headers.get("x-discord-bot-token")
+    const isBotRequest = !!(botHeader && botHeader === process.env.DISCORD_BOT_TOKEN)
+
     // --- STEP 1: AUTHENTICATION & LIMIT CHECK ---
     const ip = request.headers.get("cf-connecting-ip") || 
                request.headers.get("x-forwarded-for")?.split(",")[0].trim() || 
                request.headers.get("x-real-ip") || 
                "127.0.0.1"
 
-    if (!authUser) {
+    if (!authUser && !isBotRequest) {
       const { success, remaining } = await checkAndIncrementIpLimit(ip, 5)
       remainingScans = remaining
       if (!success) {
@@ -188,6 +192,10 @@ export async function POST(request: Request) {
       }
       if (process.env.NODE_ENV === "development") {
         console.log(`[api/scan] Anonymous daily scan attempt. IP: ${ip}, remaining: ${remaining}`)
+      }
+    } else if (isBotRequest) {
+      if (process.env.NODE_ENV === "development" || true) {
+        console.log(`[api/scan] Discord Bot authorized request. Bypassing rate limits.`)
       }
     } else {
       // Authenticated User: Check if Premium

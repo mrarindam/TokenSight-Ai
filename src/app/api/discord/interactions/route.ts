@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { verifyDiscordSignature, formatDiscordScanMessage } from "@/lib/discord"
 import { supabase } from "@/lib/supabaseClient"
+import { waitUntil } from "@vercel/functions"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -10,6 +11,7 @@ const LOGIN_URL = `${APP_URL}/login`
 const DISCORD_SETTINGS_URL = `${APP_URL}/settings/discord`
 const DISCORD_APPLICATION_ID = process.env.DISCORD_APPLICATION_ID || ""
 const DISCORD_PUBLIC_KEY = process.env.DISCORD_PUBLIC_KEY || ""
+const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN || ""
 
 async function getLinkedUserId(discordId: string) {
   const { data: user } = await supabase
@@ -134,12 +136,15 @@ export async function POST(request: Request) {
         // Discord will display "bot is thinking..."
         // Then we run the scan asynchronously and update the interaction via webhook
         
-        // Execute background fetch and message edit
-        void (async () => {
+        // Execute background fetch and message edit using Vercel's waitUntil to extend serverless lifetime
+        const scanPromise = (async () => {
           try {
             const scanRes = await fetch(`${APP_URL}/api/scan`, {
               method: "POST",
-              headers: { "Content-Type": "application/json" },
+              headers: { 
+                "Content-Type": "application/json",
+                "x-discord-bot-token": DISCORD_BOT_TOKEN
+              },
               body: JSON.stringify({ address: tokenAddress }),
             })
 
@@ -192,6 +197,8 @@ export async function POST(request: Request) {
             }).catch(() => {})
           }
         })()
+
+        waitUntil(scanPromise)
 
         return NextResponse.json({
           type: 5, // DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE ("bot is thinking...")
