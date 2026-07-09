@@ -591,6 +591,7 @@ function getRelevantInternalLinks(input: string): ChatLink[] {
   if (lower.includes("portfolio") || lower.includes("holding")) links.push({ href: "/portfolio", label: "Portfolio" })
   if (lower.includes("alert")) links.push({ href: "/alerts", label: "Alerts Center" })
   if (lower.includes("telegram")) links.push({ href: "/settings/telegram", label: "Telegram Settings" })
+  if (lower.includes("discord")) links.push({ href: "/settings/discord", label: "Discord Settings" })
   if (lower.includes("profile") || lower.includes("wallet")) links.push({ href: "/profile", label: "Profile" })
   if (lower.includes("leaderboard") || lower.includes("rank")) links.push({ href: "/leaderboard", label: "Leaderboard" })
   if (lower.includes("docs") || lower.includes("how do") || lower.includes("help")) links.push({ href: "/docs", label: "Docs" })
@@ -644,7 +645,7 @@ async function getUserContext(userId: string) {
   ] = await Promise.all([
     supabaseAdmin
       .from("users")
-      .select("display_name, username, wallet, email, twitter_handle, telegram_id")
+      .select("display_name, username, wallet, email, twitter_handle, telegram_id, discord_id")
       .eq("id", userId)
       .maybeSingle(),
     supabaseAdmin
@@ -679,6 +680,7 @@ async function getUserContext(userId: string) {
       wallet: user?.wallet || null,
       twitterHandle: user?.twitter_handle || null,
       telegramConnected: Boolean(user?.telegram_id),
+      discordConnected: Boolean(user?.discord_id),
     },
     stats: stats || null,
     portfolio: portfolio || [],

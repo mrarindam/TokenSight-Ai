@@ -17,6 +17,7 @@ const companyLinks = [
   { href: "/contact", label: "Contact Us" },
   { href: "/scan/history", label: "Scan History" },
   { href: "/settings/telegram", label: "Telegram Setup" },
+  { href: "/settings/discord", label: "Discord Setup" },
 ];
 
 const legalLinks = [

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { sendTelegramMessage, formatAlertMessage } from "@/lib/telegram"
+import { sendDiscordDM, formatDiscordAlertMessage } from "@/lib/discord"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -118,41 +119,73 @@ export async function GET(request: Request) {
           continue
         }
 
-        // 3. Get user's Telegram ID
+        // 3. Get user's Telegram/Discord ID
         const { data: user } = await supabaseAdmin
           .from("users")
-          .select("telegram_id")
+          .select("telegram_id, discord_id")
           .eq("id", alert.user_id)
           .maybeSingle()
 
-        if (!user?.telegram_id) {
-          console.log(`[CRON] User ${alert.user_id} has no Telegram linked`)
+        if (!user?.telegram_id && !user?.discord_id) {
+          console.log(`[CRON] User ${alert.user_id} has no Telegram or Discord linked`)
           continue
         }
 
-        // 4. Send Telegram message
-        const message = formatAlertMessage({
-          token_name: alert.token_name || alert.token_address,
-          token_address: alert.token_address,
-          alert_type: alert.alert_type,
-          threshold: alert.threshold,
-          current_value: currentPrice,
-          change_percent: changePercent,
-        })
+        let sentSuccess = false
 
-        console.log(`[CRON] Sending alert ${alert.id} to telegram_id=${user.telegram_id}`)
-        const telegramResult = await sendTelegramMessage({
-          chat_id: user.telegram_id,
-          text: message,
-        })
+        // 4. Send Telegram message if linked
+        if (user?.telegram_id) {
+          const telegramMessage = formatAlertMessage({
+            token_name: alert.token_name || alert.token_address,
+            token_address: alert.token_address,
+            alert_type: alert.alert_type,
+            threshold: alert.threshold,
+            current_value: currentPrice,
+            change_percent: changePercent,
+          })
 
-        if (!telegramResult.success) {
-          console.error(`[CRON] Telegram send failed for alert ${alert.id}:`, telegramResult.error)
+          console.log(`[CRON] Sending alert ${alert.id} to telegram_id=${user.telegram_id}`)
+          const telegramResult = await sendTelegramMessage({
+            chat_id: user.telegram_id,
+            text: telegramMessage,
+          })
+
+          if (telegramResult.success) {
+            sentSuccess = true
+            console.log(`[CRON] Telegram sent for alert ${alert.id}`)
+          } else {
+            console.error(`[CRON] Telegram send failed for alert ${alert.id}:`, telegramResult.error)
+          }
+        }
+
+        // Send Discord DM if linked
+        if (user?.discord_id) {
+          const discordMessage = formatDiscordAlertMessage({
+            token_name: alert.token_name || alert.token_address,
+            token_address: alert.token_address,
+            alert_type: alert.alert_type,
+            threshold: alert.threshold,
+            current_value: currentPrice,
+            change_percent: changePercent,
+          })
+
+          console.log(`[CRON] Sending alert ${alert.id} to discord_id=${user.discord_id}`)
+          const discordResult = await sendDiscordDM(user.discord_id, discordMessage)
+
+          if (discordResult.success) {
+            sentSuccess = true
+            console.log(`[CRON] Discord DM sent for alert ${alert.id}`)
+          } else {
+            console.error(`[CRON] Discord send failed for alert ${alert.id}:`, discordResult.error)
+          }
+        }
+
+        if (!sentSuccess) {
+          console.error(`[CRON] All notifications failed for alert ${alert.id}`)
           continue
         }
 
         triggeredCount++
-        console.log(`[CRON] Telegram sent for alert ${alert.id}`)
 
         // 5. Update alert with trigger info
         await supabaseAdmin

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useRef, useState } from "react"
 import { usePrivy } from "@privy-io/react-auth"
-import { Menu, X, Scan, Trophy, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, BookOpen, LogIn, BadgeInfo, MessageSquareText, Sparkles } from "lucide-react"
+import { Menu, X, Scan, Trophy, Activity, Target, ShieldAlert, Settings, ChevronDown, History, Radar, BookOpen, LogIn, BadgeInfo, MessageSquareText, Sparkles, MessageSquare } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { useAuthFetch } from "@/lib/useAuthFetch"
@@ -26,6 +26,7 @@ const SECONDARY_NAV_ITEMS = [
   { href: "/scan/history", label: "History", icon: History },
   { href: "/leaderboard", label: "Leaderboard", icon: Trophy },
   { href: "/settings/telegram", label: "Telegram", icon: Settings },
+  { href: "/settings/discord", label: "Discord", icon: MessageSquare },
 ]
 
 const MOBILE_NAV_ITEMS = [
