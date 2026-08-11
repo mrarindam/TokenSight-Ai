@@ -36,30 +36,45 @@ export async function POST(request: Request) {
     }
 
     const payload = JSON.parse(rawBody)
-    const status = (payload.status || "").toLowerCase()
-    const userId = payload.orderId || payload.order_id
+    const rawStatus = (payload.status || payload.payment_status || "").toString().toLowerCase()
+    const userId = payload.orderId || payload.order_id || payload.order_Id
 
-    console.log(`[OxaPay Webhook]: Received valid payment callback for user ID: ${userId}, status: ${status}`)
+    console.log(`[OxaPay Webhook]: Received valid payment callback for user ID: ${userId}, status: ${rawStatus}`)
 
-    if (status === "paid" && userId) {
+    const PAID_STATUSES = ["paid", "complete", "completed", "manual_accept"]
+
+    if (PAID_STATUSES.includes(rawStatus) && userId) {
       const expiresAt = getSubscriptionExpirationDate(30)
-      // Mark user as Premium in Supabase DB with 30-day expiration date
-      const { error: dbError } = await supabaseAdmin
+
+      // Fetch target user info to consolidate updates if duplicate accounts exist
+      const { data: targetUser } = await supabaseAdmin
         .from("users")
-        .update({
-          is_premium: true,
-          premium_expires_at: expiresAt
-        })
+        .select("id, email, privy_id")
         .eq("id", userId)
+        .maybeSingle()
+
+      let updateQuery = supabaseAdmin.from("users").update({
+        is_premium: true,
+        premium_expires_at: expiresAt
+      })
+
+      if (targetUser?.email && targetUser?.privy_id) {
+        updateQuery = updateQuery.or(`id.eq.${userId},email.eq.${targetUser.email},privy_id.eq.${targetUser.privy_id}`)
+      } else if (targetUser?.email) {
+        updateQuery = updateQuery.or(`id.eq.${userId},email.eq.${targetUser.email}`)
+      } else {
+        updateQuery = updateQuery.eq("id", userId)
+      }
+
+      const { error: dbError } = await updateQuery
 
       if (dbError) {
         console.error("[OxaPay Webhook Error] Supabase DB Update Failed:", dbError)
         return new Response("Database update failed", { status: 500 })
       }
 
-      // Invalidate Redis profile cache to instantly reflect changes
-      const cacheKey = `user_profile:${userId}`
-      await deleteCached(cacheKey)
+      // Invalidate Redis profile cache for target user
+      await deleteCached(`user_profile:${userId}`).catch(() => {})
       console.log(`[OxaPay Webhook]: Successfully activated Premium tier for user ID: ${userId} until ${expiresAt}`)
     }
 

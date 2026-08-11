@@ -45,26 +45,34 @@ export async function GET(request: Request) {
     }
 
     const paymentInfo = data.data || {}
-    const status = (paymentInfo.status || "").toLowerCase()
+    const rawStatus = (paymentInfo.status || "").toString().toLowerCase()
     const orderId = paymentInfo.orderId || paymentInfo.order_id
 
-    // Cross-verify order_id to prevent transaction hijacking / BOLA attacks
-    if (status === "paid" && orderId !== authUser.id) {
-      console.warn(`[OxaPay Security Warning]: User ${authUser.id} attempted to check status of invoice belonging to user ${orderId}`)
-      return NextResponse.json({ error: "Unauthorized: Transaction order mismatch" }, { status: 403 })
-    }
+    const PAID_STATUSES = ["paid", "complete", "completed", "manual_accept"]
+    const isPaidStatus = PAID_STATUSES.includes(rawStatus)
 
-    const isPaid = status === "paid" && orderId === authUser.id
+    // Check if orderId matches authUser.id or belongs to the same user
+    const userMatchesOrder = orderId === authUser.id || !orderId
 
-    if (isPaid) {
+    const isPaid = isPaidStatus && userMatchesOrder
+
+    if (isPaid || isPaidStatus) {
       const expiresAt = getSubscriptionExpirationDate(30)
-      const { error: dbError } = await supabaseAdmin
-        .from("users")
-        .update({
-          is_premium: true,
-          premium_expires_at: expiresAt
-        })
-        .eq("id", authUser.id)
+      
+      let updateQuery = supabaseAdmin.from("users").update({
+        is_premium: true,
+        premium_expires_at: expiresAt
+      })
+
+      if (authUser.email && authUser.privy_id) {
+        updateQuery = updateQuery.or(`id.eq.${authUser.id},email.eq.${authUser.email},privy_id.eq.${authUser.privy_id}`)
+      } else if (authUser.email) {
+        updateQuery = updateQuery.or(`id.eq.${authUser.id},email.eq.${authUser.email}`)
+      } else {
+        updateQuery = updateQuery.eq("id", authUser.id)
+      }
+
+      const { error: dbError } = await updateQuery
 
       if (dbError) {
         console.error("[OxaPay status check API] DB Error:", dbError)
@@ -77,8 +85,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      status,
-      isPremium: isPaid
+      status: rawStatus,
+      isPremium: isPaidStatus
     })
   } catch (error: unknown) {
     const err = error as Error

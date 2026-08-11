@@ -38,38 +38,104 @@ export default function PricingPage() {
     }
   }, [ready, authenticated, authFetch])
 
+  // Recover pending trackId from URL or localStorage on page return
+  useEffect(() => {
+    if (!ready || !authenticated) return
+
+    const urlParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null
+    const urlTrackId = urlParams?.get("trackId") || urlParams?.get("track_id")
+    const storedTrackId = typeof window !== "undefined" ? localStorage.getItem("pending_oxapay_track_id") : null
+    const isPaymentSuccessReturn = urlParams?.get("payment") === "success"
+
+    const targetTrackId = urlTrackId || storedTrackId
+
+    if (targetTrackId && !isPremium) {
+      if (oxapayTrackId !== targetTrackId) {
+        setOxapayTrackId(targetTrackId)
+      }
+      if (checkoutStep === "select" || isPaymentSuccessReturn) {
+        setShowCheckoutModal(true)
+        setCheckoutStep("processing")
+      }
+    }
+  }, [ready, authenticated, oxapayTrackId, checkoutStep, isPremium])
+
   // Polling OxaPay payment status
   useEffect(() => {
-    if (!oxapayTrackId || checkoutStep !== "processing") return
+    const activeTrackId = oxapayTrackId || (typeof window !== "undefined" ? localStorage.getItem("pending_oxapay_track_id") : null)
+    if (!activeTrackId || !authenticated) return
 
-    const intervalId = setInterval(async () => {
+    const checkStatus = async () => {
       try {
-        const res = await authFetch(`/api/billing/oxapay/status?trackId=${oxapayTrackId}`)
+        const res = await authFetch(`/api/billing/oxapay/status?trackId=${activeTrackId}`)
         if (res.ok) {
           const data = await res.json()
-          if (data.isPremium || data.status === "paid") {
-            clearInterval(intervalId)
-            setCheckoutStep("success")
+          const PAID_STATUSES = ["paid", "complete", "completed", "manual_accept"]
+          const rawStatus = (data.status || "").toString().toLowerCase()
+
+          if (data.isPremium || PAID_STATUSES.includes(rawStatus)) {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("pending_oxapay_track_id")
+            }
             setIsPremium(true)
+            setShowCheckoutModal(true)
+            setCheckoutStep("success")
 
             setTimeout(() => {
               setShowCheckoutModal(false)
               router.push("/scan")
               router.refresh()
             }, 3500)
-          } else if (data.status === "expired" || data.status === "failed") {
-            clearInterval(intervalId)
-            setErrorMsg("Payment session expired or failed on OxaPay. Please try again.")
+            return true
+          } else if (["expired", "failed", "canceled", "cancelled", "underpaid"].includes(rawStatus)) {
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("pending_oxapay_track_id")
+            }
+            setOxapayTrackId(null)
+            setErrorMsg("Payment session expired or canceled. Please try creating a new invoice.")
             setCheckoutStep("select")
+            return true
           }
         }
       } catch (err) {
         console.error("Error polling OxaPay status:", err)
       }
-    }, 4500)
+      return false
+    }
+
+    // Run immediate status check
+    checkStatus()
+
+    // Poll status every 4 seconds
+    const intervalId = setInterval(async () => {
+      const isDone = await checkStatus()
+      if (isDone) clearInterval(intervalId)
+    }, 4000)
 
     return () => clearInterval(intervalId)
-  }, [oxapayTrackId, checkoutStep, authFetch, router])
+  }, [oxapayTrackId, authenticated, authFetch, router])
+
+  const handleCloseModal = () => {
+    setShowCheckoutModal(false)
+    if (checkoutStep === "processing") {
+      setCheckoutStep("select")
+      setOxapayTrackId(null)
+      setOxapayPayLink(null)
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("pending_oxapay_track_id")
+      }
+    }
+  }
+
+  const handleCancelPayment = () => {
+    setCheckoutStep("select")
+    setOxapayTrackId(null)
+    setOxapayPayLink(null)
+    setErrorMsg("")
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("pending_oxapay_track_id")
+    }
+  }
 
   const handleUpgradeClick = async () => {
     if (!authenticated) {
@@ -96,8 +162,12 @@ export default function PricingPage() {
         throw new Error(data.error || "Failed to initiate OxaPay checkout")
       }
 
+      const generatedTrackId = data.trackId
       setOxapayPayLink(data.payLink)
-      setOxapayTrackId(data.trackId)
+      setOxapayTrackId(generatedTrackId)
+      if (typeof window !== "undefined" && generatedTrackId) {
+        localStorage.setItem("pending_oxapay_track_id", generatedTrackId)
+      }
       setCheckoutStep("processing")
 
       if (data.payLink) {
@@ -255,8 +325,9 @@ export default function PricingPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 backdrop-blur-sm animate-fade-in">
           <div className="relative w-full max-w-md rounded-2xl border border-border bg-card p-6 md:p-8 shadow-2xl space-y-6">
             <button
-              onClick={() => setShowCheckoutModal(false)}
-              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors"
+              onClick={handleCloseModal}
+              className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-1 rounded-lg hover:bg-muted/20"
+              title="Close Modal"
             >
               <X className="h-5 w-5" />
             </button>
@@ -304,27 +375,40 @@ export default function PricingPage() {
             )}
 
             {checkoutStep === "processing" && (
-              <div className="py-8 flex flex-col items-center justify-center space-y-4 text-center">
-                <Loader2 className="h-10 w-10 text-primary animate-spin" />
+              <div className="py-6 flex flex-col items-center justify-center space-y-5 text-center animate-in fade-in duration-200">
+                <div className="relative flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full bg-purple-500/20 blur-md animate-pulse" />
+                  <Loader2 className="h-12 w-12 text-purple-400 animate-spin relative z-10" />
+                </div>
                 <div className="space-y-2">
-                  <h4 className="text-md font-black uppercase tracking-wider text-foreground">
+                  <h4 className="text-base font-black uppercase tracking-wider text-foreground">
                     Awaiting Crypto Payment...
                   </h4>
-                  <p className="text-xs text-muted-foreground max-w-[80%] mx-auto font-medium">
-                    We opened the checkout page in a new tab. Please complete your transfer there. This page will update automatically once verified.
+                  <p className="text-xs text-muted-foreground max-w-[85%] mx-auto font-medium leading-relaxed">
+                    We opened the OxaPay checkout window. Complete your transfer there and this page will update automatically once verified.
                   </p>
+                  
                   {oxapayPayLink && (
-                    <div className="pt-4">
+                    <div className="pt-2">
                       <a
                         href={oxapayPayLink}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-400 hover:underline"
+                        className="inline-flex items-center gap-1 text-xs font-bold text-purple-400 hover:text-purple-300 hover:underline"
                       >
                         Didn&apos;t open? Click here to pay <span className="text-[10px]">↗</span>
                       </a>
                     </div>
                   )}
+
+                  <div className="pt-4 border-t border-border/20 mt-4 flex flex-col gap-2">
+                    <button
+                      onClick={handleCancelPayment}
+                      className="w-full py-2.5 text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/20 border border-border/40 rounded-xl transition-all duration-200"
+                    >
+                      Cancel Payment & Select Options
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
