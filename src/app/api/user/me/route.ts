@@ -14,10 +14,15 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  const { searchParams } = new URL(request.url)
+  const forceFresh = searchParams.get("fresh") === "true" || searchParams.get("nocache") === "true"
+
   const cacheKey = `user_profile:${authUser.id}`
-  const cachedUser = await getCached<unknown>(cacheKey)
-  if (cachedUser) {
-    return NextResponse.json({ user: cachedUser })
+  if (!forceFresh) {
+    const cachedUser = await getCached<unknown>(cacheKey)
+    if (cachedUser) {
+      return NextResponse.json({ user: cachedUser })
+    }
   }
 
   const { data: dbUser } = await supabaseAdmin

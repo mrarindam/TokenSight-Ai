@@ -81,6 +81,9 @@ export default function PricingPage() {
             setShowCheckoutModal(true)
             setCheckoutStep("success")
 
+            // Force refresh user profile state bypassing cache
+            authFetch("/api/user/me?fresh=true").catch(() => {})
+
             setTimeout(() => {
               setShowCheckoutModal(false)
               router.push("/scan")

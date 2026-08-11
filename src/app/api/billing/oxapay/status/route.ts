@@ -59,24 +59,59 @@ export async function GET(request: Request) {
     if (isPaid || isPaidStatus) {
       const expiresAt = getSubscriptionExpirationDate(30)
       
-      let updateQuery = supabaseAdmin.from("users").update({
-        is_premium: true,
-        premium_expires_at: expiresAt
-      })
-
-      if (authUser.email && authUser.privy_id) {
-        updateQuery = updateQuery.or(`id.eq.${authUser.id},email.eq.${authUser.email},privy_id.eq.${authUser.privy_id}`)
-      } else if (authUser.email) {
-        updateQuery = updateQuery.or(`id.eq.${authUser.id},email.eq.${authUser.email}`)
-      } else {
-        updateQuery = updateQuery.eq("id", authUser.id)
-      }
-
-      const { error: dbError } = await updateQuery
+      // 1. Direct update to current authenticated user's ID (bulletproof)
+      const { error: dbError } = await supabaseAdmin
+        .from("users")
+        .update({
+          is_premium: true,
+          premium_expires_at: expiresAt
+        })
+        .eq("id", authUser.id)
 
       if (dbError) {
         console.error("[OxaPay status check API] DB Error:", dbError)
         return NextResponse.json({ error: "Payment verified, but database update failed: " + dbError.message }, { status: 500 })
+      }
+
+      // 2. Also update any duplicate sibling records by email or privy_id
+      if (authUser.email || authUser.privy_id) {
+        const siblingIds: string[] = []
+
+        if (authUser.email) {
+          const { data: emailMatches } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("email", authUser.email)
+
+          if (emailMatches) {
+            for (const m of emailMatches) {
+              if (m.id !== authUser.id) siblingIds.push(m.id)
+            }
+          }
+        }
+
+        if (authUser.privy_id) {
+          const { data: privyMatches } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("privy_id", authUser.privy_id)
+
+          if (privyMatches) {
+            for (const m of privyMatches) {
+              if (m.id !== authUser.id && !siblingIds.includes(m.id)) siblingIds.push(m.id)
+            }
+          }
+        }
+
+        if (siblingIds.length > 0) {
+          await supabaseAdmin
+            .from("users")
+            .update({
+              is_premium: true,
+              premium_expires_at: expiresAt
+            })
+            .in("id", siblingIds)
+        }
       }
 
       const cacheKey = `user_profile:${authUser.id}`

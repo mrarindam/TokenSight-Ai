@@ -46,31 +46,65 @@ export async function POST(request: Request) {
     if (PAID_STATUSES.includes(rawStatus) && userId) {
       const expiresAt = getSubscriptionExpirationDate(30)
 
-      // Fetch target user info to consolidate updates if duplicate accounts exist
+      // 1. Direct update to target user ID (bulletproof)
+      const { error: dbError } = await supabaseAdmin
+        .from("users")
+        .update({
+          is_premium: true,
+          premium_expires_at: expiresAt
+        })
+        .eq("id", userId)
+
+      if (dbError) {
+        console.error("[OxaPay Webhook Error] Supabase DB Update Failed:", dbError)
+        return new Response("Database update failed", { status: 500 })
+      }
+
+      // 2. Fetch target user info to update sibling accounts if duplicates exist
       const { data: targetUser } = await supabaseAdmin
         .from("users")
         .select("id, email, privy_id")
         .eq("id", userId)
         .maybeSingle()
 
-      let updateQuery = supabaseAdmin.from("users").update({
-        is_premium: true,
-        premium_expires_at: expiresAt
-      })
+      if (targetUser?.email || targetUser?.privy_id) {
+        const siblingIds: string[] = []
 
-      if (targetUser?.email && targetUser?.privy_id) {
-        updateQuery = updateQuery.or(`id.eq.${userId},email.eq.${targetUser.email},privy_id.eq.${targetUser.privy_id}`)
-      } else if (targetUser?.email) {
-        updateQuery = updateQuery.or(`id.eq.${userId},email.eq.${targetUser.email}`)
-      } else {
-        updateQuery = updateQuery.eq("id", userId)
-      }
+        if (targetUser.email) {
+          const { data: emailMatches } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("email", targetUser.email)
 
-      const { error: dbError } = await updateQuery
+          if (emailMatches) {
+            for (const m of emailMatches) {
+              if (m.id !== userId) siblingIds.push(m.id)
+            }
+          }
+        }
 
-      if (dbError) {
-        console.error("[OxaPay Webhook Error] Supabase DB Update Failed:", dbError)
-        return new Response("Database update failed", { status: 500 })
+        if (targetUser.privy_id) {
+          const { data: privyMatches } = await supabaseAdmin
+            .from("users")
+            .select("id")
+            .eq("privy_id", targetUser.privy_id)
+
+          if (privyMatches) {
+            for (const m of privyMatches) {
+              if (m.id !== userId && !siblingIds.includes(m.id)) siblingIds.push(m.id)
+            }
+          }
+        }
+
+        if (siblingIds.length > 0) {
+          await supabaseAdmin
+            .from("users")
+            .update({
+              is_premium: true,
+              premium_expires_at: expiresAt
+            })
+            .in("id", siblingIds)
+        }
       }
 
       // Invalidate Redis profile cache for target user
