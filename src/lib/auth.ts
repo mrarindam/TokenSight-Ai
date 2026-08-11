@@ -148,7 +148,7 @@ export async function getOrCreateUser(userData: {
     }
 
     if (existingUser) {
-      const patch: { email?: string; wallet?: string; twitter_handle?: string; username?: string; privy_id?: string } = {};
+      const patch: { email?: string; wallet?: string; twitter_handle?: string; username?: string; privy_id?: string; is_premium?: boolean; premium_expires_at?: string } = {};
 
       if (privyId && !existingUser.privy_id) {
         patch.privy_id = privyId;
@@ -164,6 +164,27 @@ export async function getOrCreateUser(userData: {
 
       if (twitterHandle && !existingUser.twitter_handle) {
         patch.twitter_handle = twitterHandle;
+      }
+
+      // Check if another duplicate row for this user has active premium status, and consolidate it
+      if (!existingUser.is_premium && (email || privyId)) {
+        let siblingQuery = supabaseAdmin.from("users").select("is_premium, premium_expires_at").eq("is_premium", true);
+        if (email && privyId) {
+          siblingQuery = siblingQuery.or(`email.eq.${email},privy_id.eq.${privyId}`);
+        } else if (email) {
+          siblingQuery = siblingQuery.eq("email", email);
+        } else if (privyId) {
+          siblingQuery = siblingQuery.eq("privy_id", privyId);
+        }
+        
+        const { data: premiumSiblings } = await siblingQuery.limit(1);
+        if (premiumSiblings && premiumSiblings.length > 0) {
+          console.log(`[AUTH] Consolidating premium status for user ${existingUser.id}`);
+          patch.is_premium = true;
+          patch.premium_expires_at = premiumSiblings[0].premium_expires_at || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+          existingUser.is_premium = true;
+          existingUser.premium_expires_at = patch.premium_expires_at;
+        }
       }
 
       if (!existingUser.username && (name || twitterHandle || email || wallet)) {
@@ -200,7 +221,7 @@ export async function getOrCreateUser(userData: {
     let { data: newUser, error: createErr } = await supabaseAdmin
       .from("users")
       .insert({
-        email: wallet ? null : email,
+        email: email || null,
         username,
         wallet: wallet || null,
         privy_id: privyId || null,
@@ -208,6 +229,15 @@ export async function getOrCreateUser(userData: {
       })
       .select()
       .single();
+
+    // Handle race condition or duplicate key violation on insertion
+    if (createErr && (createErr.code === "23505" || createErr.message?.includes("duplicate") || createErr.message?.includes("unique"))) {
+      console.warn("[AUTH] Concurrent user insert collision detected. Fetching created record...");
+      if (privyId) existingUser = await findExistingUserByField("privy_id", privyId);
+      if (!existingUser && email) existingUser = await findExistingUserByField("email", email);
+      if (!existingUser && wallet) existingUser = await findExistingUserByField("wallet", wallet);
+      if (existingUser) return existingUser;
+    }
 
     if (
       createErr &&
@@ -220,7 +250,7 @@ export async function getOrCreateUser(userData: {
         privy_id?: string | null;
         twitter_handle?: string | null;
       } = {
-        email: wallet ? null : (email || null),
+        email: email || null,
         username,
         wallet: wallet || null,
       };
