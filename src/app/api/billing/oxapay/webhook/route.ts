@@ -1,6 +1,7 @@
 import { createHmac } from "crypto"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { deleteCached } from "@/lib/redis"
+import { getSubscriptionExpirationDate } from "@/lib/premium"
 
 export const dynamic = "force-dynamic"
 
@@ -41,10 +42,14 @@ export async function POST(request: Request) {
     console.log(`[OxaPay Webhook]: Received valid payment callback for user ID: ${userId}, status: ${status}`)
 
     if (status === "paid" && userId) {
-      // Mark user as Premium in Supabase DB
+      const expiresAt = getSubscriptionExpirationDate(30)
+      // Mark user as Premium in Supabase DB with 30-day expiration date
       const { error: dbError } = await supabaseAdmin
         .from("users")
-        .update({ is_premium: true })
+        .update({
+          is_premium: true,
+          premium_expires_at: expiresAt
+        })
         .eq("id", userId)
 
       if (dbError) {
@@ -55,7 +60,7 @@ export async function POST(request: Request) {
       // Invalidate Redis profile cache to instantly reflect changes
       const cacheKey = `user_profile:${userId}`
       await deleteCached(cacheKey)
-      console.log(`[OxaPay Webhook]: Successfully activated Premium tier for user ID: ${userId}`)
+      console.log(`[OxaPay Webhook]: Successfully activated Premium tier for user ID: ${userId} until ${expiresAt}`)
     }
 
     // Respond to OxaPay with exactly "ok" to acknowledge receipt of webhook

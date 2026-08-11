@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
+import { checkAndUpdatePremiumStatus } from "@/lib/premium"
 import type { ChatCard, ChatLink, ChatMessage, ChatResponse, ChatResult } from "@/types/chat"
 
 export const runtime = "nodejs"
@@ -1179,11 +1180,11 @@ export async function POST(request: Request) {
   // Enforce Premium access control for AI features
   const { data: dbUser } = await supabaseAdmin
     .from("users")
-    .select("is_premium")
+    .select("is_premium, premium_expires_at")
     .eq("id", authUser.id)
     .maybeSingle()
 
-  const isPremium = dbUser?.is_premium || false
+  const { isPremium } = await checkAndUpdatePremiumStatus(authUser.id, dbUser || {})
   if (!isPremium) {
     return NextResponse.json({
       reply: "🔒 **Sight AI Copilot** is a Premium feature. Upgrade to Premium to chat with the AI assistant, unlock advanced scan tools, and more.",

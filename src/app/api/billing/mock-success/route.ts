@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { deleteCached } from "@/lib/redis"
+import { getSubscriptionExpirationDate } from "@/lib/premium"
 
 export async function POST(request: Request) {
   try {
@@ -10,10 +11,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Attempt to set is_premium = true in Supabase users table
+    const expiresAt = getSubscriptionExpirationDate(30)
+    // Attempt to set is_premium = true and premium_expires_at in Supabase users table
     const { error } = await supabaseAdmin
       .from("users")
-      .update({ is_premium: true })
+      .update({
+        is_premium: true,
+        premium_expires_at: expiresAt
+      })
       .eq("id", authUser.id)
 
     if (error) {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { deleteCached } from "@/lib/redis"
+import { getSubscriptionExpirationDate } from "@/lib/premium"
 
 export const dynamic = "force-dynamic"
 
@@ -56,9 +57,13 @@ export async function GET(request: Request) {
     const isPaid = status === "paid" && orderId === authUser.id
 
     if (isPaid) {
+      const expiresAt = getSubscriptionExpirationDate(30)
       const { error: dbError } = await supabaseAdmin
         .from("users")
-        .update({ is_premium: true })
+        .update({
+          is_premium: true,
+          premium_expires_at: expiresAt
+        })
         .eq("id", authUser.id)
 
       if (dbError) {

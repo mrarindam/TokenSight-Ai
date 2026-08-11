@@ -8,6 +8,7 @@ import { addLowRiskToken } from "@/lib/lowRiskStore"
 import type { Token } from "@/types/token"
 import { getCached, setCached } from "@/lib/redis"
 import { checkAndIncrementIpLimit } from "@/lib/ip-limit"
+import { checkAndUpdatePremiumStatus } from "@/lib/premium"
 
 const BIRDEYE_API_KEY = process.env.BIRDEYE_API_KEY?.trim() || ""
 const BAGS_API_KEY = process.env.BAGS_API_KEY?.trim() || ""
@@ -201,11 +202,11 @@ export async function POST(request: Request) {
       // Authenticated User: Check if Premium
       const { data: dbUser } = await supabaseAdmin
         .from("users")
-        .select("is_premium")
+        .select("is_premium, premium_expires_at")
         .eq("id", authUser.id)
         .maybeSingle()
 
-      const isPremium = dbUser?.is_premium || false
+      const { isPremium } = await checkAndUpdatePremiumStatus(authUser.id, dbUser || {})
       if (!isPremium) {
         const { success, remaining } = await checkAndIncrementIpLimit(ip, 10)
         remainingScans = remaining

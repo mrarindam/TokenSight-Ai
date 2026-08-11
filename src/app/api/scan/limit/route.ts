@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getAuthUser } from "@/lib/auth"
 import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { getIpRemainingScans } from "@/lib/ip-limit"
+import { checkAndUpdatePremiumStatus } from "@/lib/premium"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -18,11 +19,11 @@ export async function GET(request: Request) {
       // Check if user is premium
       const { data: dbUser } = await supabaseAdmin
         .from("users")
-        .select("is_premium")
+        .select("is_premium, premium_expires_at")
         .eq("id", authUser.id)
         .maybeSingle()
       
-      const isPremium = dbUser?.is_premium || false
+      const { isPremium } = await checkAndUpdatePremiumStatus(authUser.id, dbUser || {})
       if (isPremium) {
         return NextResponse.json({ authenticated: true, isPremium: true, remaining: 99999 })
       }

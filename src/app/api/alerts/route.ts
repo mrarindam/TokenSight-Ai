@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin"
 import { sendTelegramMessage } from "@/lib/telegram"
 import type { CreateAlertPayload } from "@/types/app"
 import { getCached, setCached, deleteCached } from "@/lib/redis"
+import { checkAndUpdatePremiumStatus } from "@/lib/premium"
 
 export const dynamic = "force-dynamic"
 export const revalidate = 0
@@ -83,11 +84,11 @@ export async function POST(request: Request) {
 
   const { data: dbUser } = await supabaseAdmin
     .from("users")
-    .select("is_premium")
+    .select("is_premium, premium_expires_at")
     .eq("id", authUser.id)
     .maybeSingle()
 
-  const isPremium = dbUser?.is_premium || false
+  const { isPremium } = await checkAndUpdatePremiumStatus(authUser.id, dbUser || {})
 
   if (!isPremium) {
     const { count } = await supabaseAdmin

@@ -1,3 +1,5 @@
+import { checkAndUpdatePremiumStatus } from "@/lib/premium"
+
 export async function DELETE(request: Request) {
   const authUser = await getAuthUser(request)
   if (!authUser?.id) {
@@ -97,11 +99,11 @@ export async function POST(request: Request) {
 
   const { data: dbUser } = await supabaseAdmin
     .from("users")
-    .select("is_premium")
+    .select("is_premium, premium_expires_at")
     .eq("id", authUser.id)
     .maybeSingle()
 
-  const isPremium = dbUser?.is_premium || false
+  const { isPremium } = await checkAndUpdatePremiumStatus(authUser.id, dbUser || {})
 
   const { data: existing, error: existingError } = await supabaseAdmin
     .from("user_portfolios")
