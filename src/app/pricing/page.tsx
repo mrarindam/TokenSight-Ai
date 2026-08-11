@@ -63,11 +63,12 @@ export default function PricingPage() {
   // Polling OxaPay payment status
   useEffect(() => {
     const activeTrackId = oxapayTrackId || (typeof window !== "undefined" ? localStorage.getItem("pending_oxapay_track_id") : null)
-    if (!activeTrackId || !authenticated) return
+    if (!activeTrackId) return
 
     const checkStatus = async () => {
       try {
-        const res = await authFetch(`/api/billing/oxapay/status?trackId=${activeTrackId}`)
+        const fetchFn = authenticated ? authFetch : fetch
+        const res = await fetchFn(`/api/billing/oxapay/status?trackId=${activeTrackId}`)
         if (res.ok) {
           const data = await res.json()
           const PAID_STATUSES = ["paid", "complete", "completed", "manual_accept"]
@@ -82,7 +83,9 @@ export default function PricingPage() {
             setCheckoutStep("success")
 
             // Force refresh user profile state bypassing cache
-            authFetch("/api/user/me?fresh=true").catch(() => {})
+            if (authenticated) {
+              authFetch("/api/user/me?fresh=true").catch(() => {})
+            }
 
             setTimeout(() => {
               setShowCheckoutModal(false)
@@ -109,11 +112,11 @@ export default function PricingPage() {
     // Run immediate status check
     checkStatus()
 
-    // Poll status every 4 seconds
+    // Poll status every 3 seconds
     const intervalId = setInterval(async () => {
       const isDone = await checkStatus()
       if (isDone) clearInterval(intervalId)
-    }, 4000)
+    }, 3000)
 
     return () => clearInterval(intervalId)
   }, [oxapayTrackId, authenticated, authFetch, router])
