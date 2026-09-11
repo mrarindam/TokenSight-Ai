@@ -1,0 +1,10 @@
+# *
+User-agent: *
+Allow: /
+
+# Host
+Host: https://tokensight.ai
+
+# Sitemaps
+Sitemap: https://tokensight.ai/sitemap.xml
+Sitemap: https://tokensight.ai/server-sitemap.xml

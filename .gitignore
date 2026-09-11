@@ -24,6 +24,7 @@ yarn-debug.log*
 yarn-error.log*
 *.log
 *.txt
+!public/*.txt
 
 # local env files (CRITICAL)
 .env*
